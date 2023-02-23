@@ -1,0 +1,6 @@
+---
+repos:
+  - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
+    rev: '2.6.2'
+    hooks:
+      - id: editorconfig-checker-system
