@@ -78,6 +78,11 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+      - name: Prepare golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: 'stable'
+          check-latest: true
       - name: Bake test docker image
         run: make docker-buildx
         env:
@@ -92,8 +97,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop'
     needs:
-      - lint
-      - test
       - build
     steps:
       - name: Checkout
