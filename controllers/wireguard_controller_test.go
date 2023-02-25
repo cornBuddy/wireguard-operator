@@ -104,10 +104,12 @@ var _ = Describe("Wireguard controller", func() {
 			Eventually(func() error {
 				if wireguard.Status.Conditions != nil && len(wireguard.Status.Conditions) != 0 {
 					latestStatusCondition := wireguard.Status.Conditions[len(wireguard.Status.Conditions)-1]
-					msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, wireguard.Spec.Size)}
-					expectedLatestStatusCondition := metav1.Condition{Type: typeAvailableWireguard,
+					msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, wireguard.Spec.Size)
+					expectedLatestStatusCondition := metav1.Condition{
+						Type:   typeAvailableWireguard,
 						Status: metav1.ConditionTrue, Reason: "Reconciling",
 						Message: msg,
+					}
 					if latestStatusCondition != expectedLatestStatusCondition {
 						return fmt.Errorf("The latest status condition added to the wireguard instance is not as expected")
 					}

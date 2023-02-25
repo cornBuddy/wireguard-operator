@@ -4,3 +4,11 @@ repos:
     rev: '2.6.2'
     hooks:
       - id: editorconfig-checker-system
+  - repo: local
+    hooks:
+      - id: custom-script-file
+        name: make vet
+        entry: make vet
+        language: system
+        files: \.go$
+        pass_filenames: false
