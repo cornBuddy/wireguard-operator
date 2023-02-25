@@ -30,6 +30,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -72,18 +73,13 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ci-wireguard-operator
+          key: "ci-${{ github.event.repository.name }}"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-      - name: Prepare golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: 'stable'
-          check-latest: true
       - run: make docker-buildx
         env:
           IMG: "${{ env.IMAGE }}:${{ steps.tag.outputs.new_tag }}"
