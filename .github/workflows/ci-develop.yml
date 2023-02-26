@@ -95,8 +95,19 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           destination_branch: main
-      # TODO: adding this action will resolve #3
-      # https://github.com/marketplace/actions/close-issue
+      - name: Parse issue from commit message
+        id: parsed
+        run: |
+          issue=$(echo $COMMIT_MESSAGE | sed -n 's/.*#\([0-9]*\).*/\1/p')
+          echo "ISSUE_NUMBER=$issue"
+        env:
+          COMMIT_MESSAGE: "${{ github.event.head_commit.message }}"
+      - name: Close Issue
+        if: ${{ steps.parsed.outputs.ISSUE_NUMBER != '' }}
+        uses: peter-evans/close-issue@v2
+        with:
+          issue-number: ${{ steps.parsed.outputs.ISSUE_NUMBER }}
+          comment: Auto-closing issue
       - name: Trigger fast forward
         uses: thollander/actions-comment-pull-request@v2
         with:
