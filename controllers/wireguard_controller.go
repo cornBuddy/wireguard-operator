@@ -221,10 +221,10 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	// The CRD API is defining that the Wireguard type, have a WireguardSpec.Size field
+	// The CRD API is defining that the Wireguard type, have a WireguardSpec.Replicas field
 	// to set the quantity of Deployment instances is the desired state on the cluster.
 	// Therefore, the following code will ensure the Deployment size is the same as defined
-	// via the Size spec of the Custom Resource which we are reconciling.
+	// via the Replicas spec of the Custom Resource which we are reconciling.
 	size := wireguard.Spec.Replicas
 	if *found.Spec.Replicas != size {
 		found.Spec.Replicas = &size
