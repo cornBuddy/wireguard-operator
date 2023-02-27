@@ -72,8 +72,7 @@ var _ = Describe("Wireguard controller", func() {
 						Namespace: namespace.Name,
 					},
 					Spec: vpnv1alpha1.WireguardSpec{
-						Replicas:      1,
-						ContainerPort: 51820,
+						Replicas: 1,
 					},
 				}
 

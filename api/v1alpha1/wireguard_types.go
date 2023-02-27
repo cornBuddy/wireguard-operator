@@ -19,9 +19,11 @@ type WireguardSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=3
 	// +kubebuilder:validation:ExclusiveMaximum=false
+	// +kubebuilder:default=1
 	Replicas int32 `json:"replicas,omitempty"`
 
 	// Port defines the port that will be used to init the container with the image
+	// +kubebuilder:default=51820
 	ContainerPort int32 `json:"containerPort,omitempty"`
 }
 

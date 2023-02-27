@@ -36,11 +36,13 @@ spec:
             description: WireguardSpec defines the desired state of Wireguard
             properties:
               containerPort:
+                default: 51820
                 description: Port defines the port that will be used to init the container
                   with the image
                 format: int32
                 type: integer
               replicas:
+                default: 1
                 description: 'Replicas defines the number of Wireguard instances The
                   following markers will use OpenAPI v3 schema to validate the value
                   More info: https://book.kubebuilder.io/reference/markers/crd-validation.html'
