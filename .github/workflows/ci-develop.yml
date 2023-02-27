@@ -100,7 +100,9 @@ jobs:
         uses: peter-evans/close-issue@v2
         with:
           issue-number: ${{ steps.parsed.outputs.issue_number }}
-          comment: Auto-closing issue
+          comment: >-
+            Auto-closing issue at
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   pull-request:
     name: Submit pull request
     runs-on: ubuntu-latest
