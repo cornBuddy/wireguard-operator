@@ -68,7 +68,7 @@ var _ = Describe("Wireguard controller", func() {
 						Namespace: namespace.Name,
 					},
 					Spec: vpnv1alpha1.WireguardSpec{
-						Size:          1,
+						Replicas:      1,
 						ContainerPort: 51820,
 					},
 				}
@@ -104,7 +104,7 @@ var _ = Describe("Wireguard controller", func() {
 			Eventually(func() error {
 				if wireguard.Status.Conditions != nil && len(wireguard.Status.Conditions) != 0 {
 					latestStatusCondition := wireguard.Status.Conditions[len(wireguard.Status.Conditions)-1]
-					msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, wireguard.Spec.Size)
+					msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, wireguard.Spec.Replicas)
 					expectedLatestStatusCondition := metav1.Condition{
 						Type:   typeAvailableWireguard,
 						Status: metav1.ConditionTrue, Reason: "Reconciling",

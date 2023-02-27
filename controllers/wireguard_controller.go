@@ -225,7 +225,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// to set the quantity of Deployment instances is the desired state on the cluster.
 	// Therefore, the following code will ensure the Deployment size is the same as defined
 	// via the Size spec of the Custom Resource which we are reconciling.
-	size := wireguard.Spec.Size
+	size := wireguard.Spec.Replicas
 	if *found.Spec.Replicas != size {
 		found.Spec.Replicas = &size
 		if err = r.Update(ctx, found); err != nil {
@@ -297,7 +297,7 @@ func (r *WireguardReconciler) doFinalizerOperationsForWireguard(cr *vpnv1alpha1.
 func (r *WireguardReconciler) deploymentForWireguard(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
 	ls := labelsForWireguard(wireguard.Name)
-	replicas := wireguard.Spec.Size
+	replicas := wireguard.Spec.Replicas
 
 	// Get the Operand image
 	image, err := imageForWireguard()
