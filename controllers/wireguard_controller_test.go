@@ -20,19 +20,23 @@ import (
 
 var _ = Describe("Wireguard controller", func() {
 	Context("Wireguard controller test", func() {
-
-		const WireguardName = "test-wireguard"
+		const (
+			WireguardName = "test-wireguard"
+			timeout       = 10 * time.Second
+			interval      = 200 * time.Millisecond
+		)
 
 		ctx := context.Background()
-
 		namespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      WireguardName,
 				Namespace: WireguardName,
 			},
 		}
-
-		typeNamespaceName := types.NamespacedName{Name: WireguardName, Namespace: WireguardName}
+		typeNamespaceName := types.NamespacedName{
+			Name:      WireguardName,
+			Namespace: WireguardName,
+		}
 
 		BeforeEach(func() {
 			By("Creating the Namespace to perform the tests")
@@ -81,7 +85,7 @@ var _ = Describe("Wireguard controller", func() {
 			Eventually(func() error {
 				found := &vpnv1alpha1.Wireguard{}
 				return k8sClient.Get(ctx, typeNamespaceName, found)
-			}, time.Minute, time.Second).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
 
 			By("Reconciling the custom resource created")
 			wireguardReconciler := &WireguardReconciler{
@@ -98,7 +102,18 @@ var _ = Describe("Wireguard controller", func() {
 			Eventually(func() error {
 				found := &appsv1.Deployment{}
 				return k8sClient.Get(ctx, typeNamespaceName, found)
-			}, time.Minute, time.Second).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			_, err = wireguardReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespaceName,
+			})
+			Expect(err).To(Not(HaveOccurred()))
+
+			By("Checking if Service was successfully created in the reconciliation")
+			Eventually(func() error {
+				found := &corev1.Service{}
+				return k8sClient.Get(ctx, typeNamespaceName, found)
+			}, timeout, interval).Should(Succeed())
 
 			By("Checking the latest Status Condition added to the Wireguard instance")
 			Eventually(func() error {
@@ -115,7 +130,7 @@ var _ = Describe("Wireguard controller", func() {
 					}
 				}
 				return nil
-			}, time.Minute, time.Second).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })

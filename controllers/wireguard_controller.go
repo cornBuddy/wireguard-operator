@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -84,7 +83,8 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Let's just set the status as Unknown when no status are available
-	if wireguard.Status.Conditions == nil || len(wireguard.Status.Conditions) == 0 {
+	statusIsEmpty := wireguard.Status.Conditions == nil || len(wireguard.Status.Conditions) == 0
+	if statusIsEmpty {
 		condition := metav1.Condition{
 			Type:    typeAvailableWireguard,
 			Status:  metav1.ConditionUnknown,
@@ -181,9 +181,14 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
+	key := types.NamespacedName{
+		Name:      wireguard.Name,
+		Namespace: wireguard.Namespace,
+	}
+
 	// Check if the deployment already exists, if not create a new one
-	found := &appsv1.Deployment{}
-	err = r.Get(ctx, types.NamespacedName{Name: wireguard.Name, Namespace: wireguard.Namespace}, found)
+	deploy := &appsv1.Deployment{}
+	err = r.Get(ctx, key, deploy)
 	if err != nil && apierrors.IsNotFound(err) {
 		// Define a new deployment
 		dep, err := r.deploymentForWireguard(wireguard)
@@ -214,7 +219,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Deployment created successfully
 		// We will requeue the reconciliation so that we can ensure the state
 		// and move forward for the next operations
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
 		log.Error(err, "Failed to get Deployment")
 		// Let's return the error for the reconciliation be re-trigged again
@@ -226,11 +231,11 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Therefore, the following code will ensure the Deployment size is the same as defined
 	// via the Replicas spec of the Custom Resource which we are reconciling.
 	size := wireguard.Spec.Replicas
-	if *found.Spec.Replicas != size {
-		found.Spec.Replicas = &size
-		if err = r.Update(ctx, found); err != nil {
+	if *deploy.Spec.Replicas != size {
+		deploy.Spec.Replicas = &size
+		if err = r.Update(ctx, deploy); err != nil {
 			log.Error(err, "Failed to update Deployment",
-				"Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+				"Deployment.Namespace", deploy.Namespace, "Deployment.Name", deploy.Name)
 
 			// Re-fetch the wireguard Custom Resource before update the status
 			// so that we have the latest state of the resource on the cluster and we will avoid
@@ -260,10 +265,52 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	service := &corev1.Service{}
+	err = r.Get(ctx, key, service)
+	if err != nil && apierrors.IsNotFound(err) {
+		// Define a new service
+		service, err := r.serviceForWireguard(wireguard)
+		if err != nil {
+			log.Error(err, "Failed to define new Service resource for Wireguard")
+			// The following implementation will update the status
+			msg := fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", wireguard.Name, err)
+			cdtn := metav1.Condition{
+				Type:    typeAvailableWireguard,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: msg,
+			}
+			meta.SetStatusCondition(&wireguard.Status.Conditions, cdtn)
+			if err := r.Status().Update(ctx, wireguard); err != nil {
+				log.Error(err, "Failed to update Wireguard status")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Creating a new Service",
+			"Service.Namespace", service.Namespace, "Service.Name", service.Name)
+		if err = r.Create(ctx, service); err != nil {
+			log.Error(err, "Failed to create new Service",
+				"Service.Namespace", service.Namespace, "Service.Name", service.Name)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		log.Error(err, "Failed to get Service")
+		// Let's return the error for the reconciliation be re-trigged again
+		return ctrl.Result{}, err
+	}
+
 	// The following implementation will update the status
-	meta.SetStatusCondition(&wireguard.Status.Conditions, metav1.Condition{Type: typeAvailableWireguard,
-		Status: metav1.ConditionTrue, Reason: "Reconciling",
-		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, size)})
+	msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, size)
+	cdnt := metav1.Condition{
+		Type:    typeAvailableWireguard,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Reconciling",
+		Message: msg,
+	}
+	meta.SetStatusCondition(&wireguard.Status.Conditions, cdnt)
 
 	if err := r.Status().Update(ctx, wireguard); err != nil {
 		log.Error(err, "Failed to update Wireguard status")
@@ -293,6 +340,31 @@ func (r *WireguardReconciler) doFinalizerOperationsForWireguard(cr *vpnv1alpha1.
 			cr.Namespace))
 }
 
+func (r *WireguardReconciler) serviceForWireguard(
+	wireguard *vpnv1alpha1.Wireguard) (*corev1.Service, error) {
+	ls := labelsForWireguard(wireguard.Name)
+
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wireguard.Name,
+			Namespace: wireguard.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: ls,
+			Ports: []corev1.ServicePort{{
+				Name:     "wireguard",
+				Protocol: "UDP",
+				Port:     wireguard.Spec.ContainerPort,
+			}},
+		},
+	}
+
+	if err := ctrl.SetControllerReference(wireguard, service, r.Scheme); err != nil {
+		return nil, err
+	}
+	return service, nil
+}
+
 // deploymentForWireguard returns a Wireguard Deployment object
 func (r *WireguardReconciler) deploymentForWireguard(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
@@ -320,36 +392,7 @@ func (r *WireguardReconciler) deploymentForWireguard(
 					Labels: ls,
 				},
 				Spec: corev1.PodSpec{
-					// TODO(user): Uncomment the following code to configure the nodeAffinity expression
-					// according to the platforms which are supported by your solution. It is considered
-					// best practice to support multiple architectures. build your manager image using the
-					// makefile target docker-buildx. Also, you can use docker manifest inspect <image>
-					// to check what are the platforms supported.
-					// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
-					//Affinity: &corev1.Affinity{
-					//	NodeAffinity: &corev1.NodeAffinity{
-					//		RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-					//			NodeSelectorTerms: []corev1.NodeSelectorTerm{
-					//				{
-					//					MatchExpressions: []corev1.NodeSelectorRequirement{
-					//						{
-					//							Key:      "kubernetes.io/arch",
-					//							Operator: "In",
-					//							Values:   []string{"amd64", "arm64", "ppc64le", "s390x"},
-					//						},
-					//						{
-					//							Key:      "kubernetes.io/os",
-					//							Operator: "In",
-					//							Values:   []string{"linux"},
-					//						},
-					//					},
-					//				},
-					//			},
-					//		},
-					//	},
-					//},
 					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: &[]bool{true}[0],
 						// IMPORTANT: seccomProfile was introduced with Kubernetes 1.19
 						// If you are looking for to produce solutions to be supported
 						// on lower versions you must remove this option.
@@ -364,8 +407,6 @@ func (r *WireguardReconciler) deploymentForWireguard(
 						// Ensure restrictive context for the container
 						// More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
 						SecurityContext: &corev1.SecurityContext{
-							RunAsNonRoot:             &[]bool{true}[0],
-							AllowPrivilegeEscalation: &[]bool{false}[0],
 							Capabilities: &corev1.Capabilities{
 								Drop: []corev1.Capability{
 									"ALL",
@@ -375,6 +416,7 @@ func (r *WireguardReconciler) deploymentForWireguard(
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: wireguard.Spec.ContainerPort,
 							Name:          "wireguard",
+							Protocol:      "UDP",
 						}},
 					}},
 				},
@@ -398,7 +440,8 @@ func labelsForWireguard(name string) map[string]string {
 	if err == nil {
 		imageTag = strings.Split(image, ":")[1]
 	}
-	return map[string]string{"app.kubernetes.io/name": "Wireguard",
+	return map[string]string{
+		"app.kubernetes.io/name":       "Wireguard",
 		"app.kubernetes.io/instance":   name,
 		"app.kubernetes.io/version":    imageTag,
 		"app.kubernetes.io/part-of":    "wireguard-operator",
@@ -412,7 +455,7 @@ func imageForWireguard() (string, error) {
 	var imageEnvVar = "WIREGUARD_IMAGE"
 	image, found := os.LookupEnv(imageEnvVar)
 	if !found {
-		return "", fmt.Errorf("Unable to find %s environment variable with the image", imageEnvVar)
+		return "linuxserver/wireguard:1.0.20210914", nil
 	}
 	return image, nil
 }

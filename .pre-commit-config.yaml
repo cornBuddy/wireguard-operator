@@ -6,6 +6,12 @@ repos:
       - id: editorconfig-checker-system
   - repo: local
     hooks:
+      - id: make-fmt
+        name: make fmt
+        entry: make fmt
+        language: system
+        files: \.go$
+        pass_filenames: false
       - id: make-vet
         name: make vet
         entry: make vet
