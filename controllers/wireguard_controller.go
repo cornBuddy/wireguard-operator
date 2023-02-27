@@ -371,12 +371,6 @@ func (r *WireguardReconciler) deploymentForWireguard(
 	ls := labelsForWireguard(wireguard.Name)
 	replicas := wireguard.Spec.Replicas
 
-	// Get the Operand image
-	image, err := imageForWireguard()
-	if err != nil {
-		return nil, err
-	}
-
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
@@ -401,7 +395,7 @@ func (r *WireguardReconciler) deploymentForWireguard(
 						},
 					},
 					Containers: []corev1.Container{{
-						Image:           image,
+						Image:           imageForWireguard(),
 						Name:            "wireguard",
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						// Ensure restrictive context for the container
@@ -435,11 +429,7 @@ func (r *WireguardReconciler) deploymentForWireguard(
 // labelsForWireguard returns the labels for selecting the resources
 // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
 func labelsForWireguard(name string) map[string]string {
-	var imageTag string
-	image, err := imageForWireguard()
-	if err == nil {
-		imageTag = strings.Split(image, ":")[1]
-	}
+	imageTag := strings.Split(imageForWireguard(), ":")[1]
 	return map[string]string{
 		"app.kubernetes.io/name":       "Wireguard",
 		"app.kubernetes.io/instance":   name,
@@ -451,13 +441,12 @@ func labelsForWireguard(name string) map[string]string {
 
 // imageForWireguard gets the Operand image which is managed by this controller
 // from the WIREGUARD_IMAGE environment variable defined in the config/manager/manager.yaml
-func imageForWireguard() (string, error) {
-	var imageEnvVar = "WIREGUARD_IMAGE"
-	image, found := os.LookupEnv(imageEnvVar)
+func imageForWireguard() string {
+	image, found := os.LookupEnv("WIREGUARD_IMAGE")
 	if !found {
-		return "linuxserver/wireguard:1.0.20210914", nil
+		return "linuxserver/wireguard:1.0.20210914"
 	}
-	return image, nil
+	return image
 }
 
 // SetupWithManager sets up the controller with the Manager.
