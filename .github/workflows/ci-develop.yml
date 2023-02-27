@@ -96,6 +96,7 @@ jobs:
         env:
           COMMIT_MESSAGE: "${{ github.event.head_commit.message }}"
       - name: Close Issue
+        if: steps.parsed.outputs.issue_number != ''
         uses: peter-evans/close-issue@v2
         with:
           issue-number: ${{ steps.parsed.outputs.issue_number }}
