@@ -253,3 +253,9 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+.PHONY: minikube
+minikube:
+	minikube start \
+	--driver=docker \
+	--extra-config="kubelet.allowed-unsafe-sysctls=net.ipv4*,net.ipv6*"

@@ -401,7 +401,7 @@ func (r *WireguardReconciler) deploymentForWireguard(
 				},
 			},
 			FailureThreshold:    2,
-			SuccessThreshold:    3,
+			SuccessThreshold:    1,
 			InitialDelaySeconds: 5,
 			TimeoutSeconds:      1,
 			PeriodSeconds:       10,
