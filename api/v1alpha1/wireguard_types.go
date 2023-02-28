@@ -4,15 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for
-// the fields to be serialized.
-
 // WireguardSpec defines the desired state of Wireguard
 type WireguardSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// Replicas defines the number of Wireguard instances
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
@@ -25,6 +18,15 @@ type WireguardSpec struct {
 	// Port defines the port that will be used to init the container with the image
 	// +kubebuilder:default=51820
 	ContainerPort int32 `json:"containerPort,omitempty"`
+
+	// Network space to use
+	// TODO: add validation
+	// +kubebuilder:default="192.168.1.1/24"
+	Network string `json:"network,omitempty"`
+
+	// Indicates whether to use kubernetes' internal DNS
+	// +kubebuilder:default=false
+	UseInternalDNS bool `json:"useInternalDNS,omitempty"`
 }
 
 // WireguardStatus defines the observed state of Wireguard
@@ -41,7 +43,6 @@ type WireguardStatus struct {
 	// indicating details about the transition.
 	// For further information see:
 	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 

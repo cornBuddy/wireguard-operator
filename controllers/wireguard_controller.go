@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -371,6 +372,61 @@ func (r *WireguardReconciler) deploymentForWireguard(
 	ls := labelsForWireguard(wireguard.Name)
 	replicas := wireguard.Spec.Replicas
 
+	wireguardContainer := corev1.Container{
+		Image:           imageForWireguard(),
+		Name:            "wireguard",
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: toPtr(true),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"NET_ADMIN",
+					"SYS_MODULE",
+				},
+			},
+		},
+		Ports: []corev1.ContainerPort{{
+			ContainerPort: wireguard.Spec.ContainerPort,
+			Name:          "wireguard",
+			Protocol:      "UDP",
+		}},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{
+						"/bin/sh",
+						"-c",
+						"ip link show wg0 up",
+					},
+				},
+			},
+			FailureThreshold:    2,
+			SuccessThreshold:    3,
+			InitialDelaySeconds: 5,
+			TimeoutSeconds:      1,
+			PeriodSeconds:       10,
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Host:   "google.com",
+					Scheme: "HTTPS",
+					Path:   "/",
+					Port:   intstr.IntOrString{IntVal: 443},
+					HTTPHeaders: []corev1.HTTPHeader{{
+						Name:  "Host",
+						Value: "www.google.com",
+					}},
+				},
+			},
+			FailureThreshold:    2,
+			SuccessThreshold:    3,
+			InitialDelaySeconds: 10,
+			TimeoutSeconds:      10,
+			PeriodSeconds:       10,
+		},
+	}
+
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
@@ -387,32 +443,14 @@ func (r *WireguardReconciler) deploymentForWireguard(
 				},
 				Spec: corev1.PodSpec{
 					SecurityContext: &corev1.PodSecurityContext{
-						// IMPORTANT: seccomProfile was introduced with Kubernetes 1.19
-						// If you are looking for to produce solutions to be supported
-						// on lower versions you must remove this option.
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					Containers: []corev1.Container{{
-						Image:           imageForWireguard(),
-						Name:            "wireguard",
-						ImagePullPolicy: corev1.PullIfNotPresent,
-						// Ensure restrictive context for the container
-						// More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
-						SecurityContext: &corev1.SecurityContext{
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{
-									"ALL",
-								},
-							},
-						},
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: wireguard.Spec.ContainerPort,
-							Name:          "wireguard",
-							Protocol:      "UDP",
+						Sysctls: []corev1.Sysctl{{
+							Name:  "net.ipv4.ip_forward",
+							Value: "1",
 						}},
-					}},
+					},
+					Containers: []corev1.Container{
+						wireguardContainer,
+					},
 				},
 			},
 		},
@@ -459,3 +497,5 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Complete(r)
 }
+
+func toPtr[V any](o V) *V { return &o }

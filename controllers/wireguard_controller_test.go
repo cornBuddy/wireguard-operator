@@ -99,8 +99,33 @@ var _ = Describe("Wireguard controller", func() {
 
 			By("Checking if Deployment was successfully created in the reconciliation")
 			Eventually(func() error {
-				found := &appsv1.Deployment{}
-				return k8sClient.Get(ctx, typeNamespaceName, found)
+				deploy := &appsv1.Deployment{}
+				err := k8sClient.Get(ctx, typeNamespaceName, deploy)
+				if err != nil {
+					return err
+				}
+				containers := deploy.Spec.Template.Spec.Containers
+				Expect(len(containers)).To(Equal(1))
+
+				context := &corev1.SecurityContext{
+					Privileged: toPtr(true),
+					Capabilities: &corev1.Capabilities{
+						Add: []corev1.Capability{
+							"NET_ADMIN",
+							"SYS_MODULE",
+						},
+					},
+				}
+				wg := containers[0]
+				Expect(wg.SecurityContext).To(BeEquivalentTo(context))
+
+				sysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
+				want := []corev1.Sysctl{{
+					Name:  "net.ipv4.ip_forward",
+					Value: "1",
+				}}
+				Expect(sysctls).To(BeEquivalentTo(want))
+				return nil
 			}, timeout, interval).Should(Succeed())
 
 			_, err = wireguardReconciler.Reconcile(ctx, reconcile.Request{

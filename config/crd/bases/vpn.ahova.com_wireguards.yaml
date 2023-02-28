@@ -41,6 +41,10 @@ spec:
                   with the image
                 format: int32
                 type: integer
+              network:
+                default: 192.168.1.1/24
+                description: 'Network space to use TODO: add validation'
+                type: string
               replicas:
                 default: 1
                 description: 'Replicas defines the number of Wireguard instances The
@@ -50,11 +54,24 @@ spec:
                 maximum: 3
                 minimum: 1
                 type: integer
+              useInternalDNS:
+                default: false
+                description: Indicates whether to use kubernetes' internal DNS
+                type: boolean
             type: object
           status:
             description: WireguardStatus defines the observed state of Wireguard
             properties:
               conditions:
+                description: 'Represents the observations of a Wireguard''s current
+                  state. Wireguard.status.conditions.type are: "Available", "Progressing",
+                  and "Degraded" Wireguard.status.conditions.status are one of True,
+                  False, Unknown. Wireguard.status.conditions.reason the value should
+                  be a CamelCase string and producers of specific condition types
+                  may define expected values and meanings for this field, and whether
+                  the values are considered a guaranteed API. Wireguard.status.conditions.Message
+                  is a human readable message indicating details about the transition.
+                  For further information see: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties'
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
