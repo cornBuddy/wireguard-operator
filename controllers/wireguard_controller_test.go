@@ -133,12 +133,22 @@ var _ = Describe("Wireguard controller", func() {
 				wg := containers[0]
 				Expect(wg.SecurityContext).To(BeEquivalentTo(context))
 
-				sysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
-				want := []corev1.Sysctl{{
+				gotSysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
+				wantSysctls := []corev1.Sysctl{{
 					Name:  "net.ipv4.ip_forward",
 					Value: "1",
 				}}
-				Expect(sysctls).To(BeEquivalentTo(want))
+				Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
+
+				gotVolumes := deploy.Spec.Template.Spec.Volumes
+				var wantVolumesLen int
+				if wireguard.Spec.UseInternalDNS {
+					wantVolumesLen = 1
+				} else {
+					wantVolumesLen = 0
+				}
+				Expect(len(gotVolumes)).To(Equal(wantVolumesLen))
+
 				return nil
 			}, timeout, interval).Should(Succeed())
 

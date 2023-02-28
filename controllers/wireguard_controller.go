@@ -384,7 +384,7 @@ func (r *WireguardReconciler) doFinalizerOperationsForWireguard(cr *vpnv1alpha1.
 
 func (r *WireguardReconciler) serviceForWireguard(
 	wireguard *vpnv1alpha1.Wireguard) (*corev1.Service, error) {
-	ls := labelsForWireguard(wireguard.Name)
+	ls := getLabels(wireguard.Name)
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -427,7 +427,7 @@ func (r *WireguardReconciler) getConfigMap(
 // getDeployment returns a Wireguard Deployment object
 func (r *WireguardReconciler) getDeployment(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
-	ls := labelsForWireguard(wireguard.Name)
+	ls := getLabels(wireguard.Name)
 	replicas := wireguard.Spec.Replicas
 
 	wireguardContainer := corev1.Container{
@@ -522,9 +522,9 @@ func (r *WireguardReconciler) getDeployment(
 	return dep, nil
 }
 
-// labelsForWireguard returns the labels for selecting the resources
+// getLabels returns the labels for selecting the resources
 // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
-func labelsForWireguard(name string) map[string]string {
+func getLabels(name string) map[string]string {
 	imageTag := strings.Split(imageForWireguard(), ":")[1]
 	return map[string]string{
 		"app.kubernetes.io/name":       "Wireguard",
