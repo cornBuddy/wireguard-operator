@@ -233,7 +233,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	err = r.Get(ctx, key, deploy)
 	if err != nil && apierrors.IsNotFound(err) {
 		// Define a new deployment
-		dep, err := r.deploymentForWireguard(wireguard)
+		dep, err := r.getDeployment(wireguard)
 		if err != nil {
 			log.Error(err, "Failed to define new Deployment resource for Wireguard")
 
@@ -424,8 +424,8 @@ func (r *WireguardReconciler) getConfigMap(
 	return &configMap, nil
 }
 
-// deploymentForWireguard returns a Wireguard Deployment object
-func (r *WireguardReconciler) deploymentForWireguard(
+// getDeployment returns a Wireguard Deployment object
+func (r *WireguardReconciler) getDeployment(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
 	ls := labelsForWireguard(wireguard.Name)
 	replicas := wireguard.Spec.Replicas
