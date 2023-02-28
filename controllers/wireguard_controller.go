@@ -429,6 +429,7 @@ func (r *WireguardReconciler) getDeployment(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
 	ls := getLabels(wireguard.Name)
 	replicas := wireguard.Spec.Replicas
+	volumes, mounts := getVolumes(wireguard)
 
 	wireguardContainer := corev1.Container{
 		Image:           imageForWireguard(),
@@ -483,8 +484,27 @@ func (r *WireguardReconciler) getDeployment(
 			TimeoutSeconds:      10,
 			PeriodSeconds:       10,
 		},
+		VolumeMounts: mounts.wireguard,
 	}
 
+	podSpec := &corev1.PodSpec{
+		SecurityContext: &corev1.PodSecurityContext{
+			Sysctls: []corev1.Sysctl{{
+				Name:  "net.ipv4.ip_forward",
+				Value: "1",
+			}},
+		},
+		Containers: []corev1.Container{
+			wireguardContainer,
+		},
+		Volumes: volumes,
+	}
+	if !wireguard.Spec.UseInternalDNS {
+		podSpec.DNSPolicy = corev1.DNSNone
+		podSpec.DNSConfig = &corev1.PodDNSConfig{
+			Nameservers: []string{"127.0.0.1"},
+		}
+	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
@@ -499,17 +519,7 @@ func (r *WireguardReconciler) getDeployment(
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: ls,
 				},
-				Spec: corev1.PodSpec{
-					SecurityContext: &corev1.PodSecurityContext{
-						Sysctls: []corev1.Sysctl{{
-							Name:  "net.ipv4.ip_forward",
-							Value: "1",
-						}},
-					},
-					Containers: []corev1.Container{
-						wireguardContainer,
-					},
-				},
+				Spec: *podSpec,
 			},
 		},
 	}
@@ -520,6 +530,10 @@ func (r *WireguardReconciler) getDeployment(
 		return nil, err
 	}
 	return dep, nil
+}
+
+func getVolumes(w *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
+	return []corev1.Volume{}, containerMounts{}
 }
 
 // getLabels returns the labels for selecting the resources
@@ -554,6 +568,10 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
+}
+
+type containerMounts struct {
+	wireguard []corev1.VolumeMount
 }
 
 func toPtr[V any](o V) *V { return &o }

@@ -140,14 +140,19 @@ var _ = Describe("Wireguard controller", func() {
 				}}
 				Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
 
-				gotVolumes := deploy.Spec.Template.Spec.Volumes
-				var wantVolumesLen int
+				dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
+				dnsConfig := deploy.Spec.Template.Spec.DNSConfig
 				if wireguard.Spec.UseInternalDNS {
-					wantVolumesLen = 1
+					want := &corev1.PodDNSConfig{}
+					Expect(dnsConfig).To(BeEquivalentTo(want))
+					Expect(dnsPolicy).To(Equal(corev1.DNSDefault))
 				} else {
-					wantVolumesLen = 0
+					want := &corev1.PodDNSConfig{
+						Nameservers: []string{"127.0.0.1"},
+					}
+					Expect(dnsConfig).To(BeEquivalentTo(want))
+					Expect(dnsPolicy).To(Equal(corev1.DNSPolicy(corev1.DNSNone)))
 				}
-				Expect(len(gotVolumes)).To(Equal(wantVolumesLen))
 
 				return nil
 			}, timeout, interval).Should(Succeed())
