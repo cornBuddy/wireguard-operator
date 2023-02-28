@@ -92,6 +92,20 @@ var _ = Describe("Wireguard controller", func() {
 				Scheme: k8sClient.Scheme(),
 			}
 
+			// TODO: extract reconcilation loop into function and
+			// then move it to BeforeEach hook
+			_, err = wireguardReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespaceName,
+			})
+			Expect(err).To(Not(HaveOccurred()))
+
+			// FIXME: make order insignificant
+			By("Checking if ConfigMap was successfully created in the reconciliation")
+			Eventually(func() error {
+				found := &corev1.ConfigMap{}
+				return k8sClient.Get(ctx, typeNamespaceName, found)
+			}, timeout, interval).Should(Succeed())
+
 			_, err = wireguardReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespaceName,
 			})
@@ -138,6 +152,11 @@ var _ = Describe("Wireguard controller", func() {
 				found := &corev1.Service{}
 				return k8sClient.Get(ctx, typeNamespaceName, found)
 			}, timeout, interval).Should(Succeed())
+
+			_, err = wireguardReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespaceName,
+			})
+			Expect(err).To(Not(HaveOccurred()))
 
 			By("Checking the latest Status Condition added to the Wireguard instance")
 			Eventually(func() error {

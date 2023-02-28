@@ -187,6 +187,47 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Namespace: wireguard.Namespace,
 	}
 
+	// Check if the confgimap already exists, if not create a new one
+	configMap := &corev1.ConfigMap{}
+	if err = r.Get(ctx, key, configMap); err == nil {
+		log.Info("Ensured that ConfigMap is created",
+			"ConfigMap.Namespace", wireguard.Namespace, "ConfigMap.Name", wireguard.Name)
+	} else if apierrors.IsNotFound(err) {
+		cm, err := r.getConfigMap(wireguard)
+		if err != nil {
+			log.Error(err, "Failed to define new ConfigMap resource for Wireguard")
+
+			msg := fmt.Sprintf("Failed to create ConfigMap for the custom resource (%s): (%s)", wireguard.Name, err)
+			condition := metav1.Condition{
+				Type:    typeAvailableWireguard,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: msg,
+			}
+			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
+
+			if err := r.Status().Update(ctx, wireguard); err != nil {
+				log.Error(err, "Failed to update Wireguard status")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, err
+		}
+
+		log.Info("Creating a new Deployment",
+			"ConfigMap.Namespace", cm.Namespace, "ConfigMap.Name", cm.Name)
+		if err = r.Create(ctx, cm); err != nil {
+			log.Error(err, "Failed to create new ConfigMap",
+				"ConfigMap.Namespace", cm.Namespace, "ConfigMap.Name", cm.Name)
+			return ctrl.Result{}, err
+		}
+
+		// ConfigMap created successfully
+		// We will requeue the reconciliation so that we can ensure the state
+		// and move forward for the next operations
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	// Check if the deployment already exists, if not create a new one
 	deploy := &appsv1.Deployment{}
 	err = r.Get(ctx, key, deploy)
@@ -364,6 +405,23 @@ func (r *WireguardReconciler) serviceForWireguard(
 		return nil, err
 	}
 	return service, nil
+}
+
+// getConfigMap returns a Wireguard ConfigMap object
+func (r *WireguardReconciler) getConfigMap(
+	wireguard *vpnv1alpha1.Wireguard) (*corev1.ConfigMap, error) {
+
+	configMap := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wireguard.Name,
+			Namespace: wireguard.Namespace,
+		},
+		Data: map[string]string{
+			"resolv.conf": "nameserver 127.0.0.1",
+		},
+	}
+
+	return &configMap, nil
 }
 
 // deploymentForWireguard returns a Wireguard Deployment object
