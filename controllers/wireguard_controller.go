@@ -504,7 +504,6 @@ func (r *WireguardReconciler) getDeployment(
 			TimeoutSeconds:      10,
 			PeriodSeconds:       10,
 		},
-		VolumeMounts: mounts.wireguard,
 	}
 	unboundContainer := corev1.Container{
 		Image:           wireguard.Spec.ExternalDNS.Image,
@@ -515,7 +514,7 @@ func (r *WireguardReconciler) getDeployment(
 		Args: []string{
 			"-d",
 			"-c",
-			"{{ .Values.unbound.configDir }}/unbound.conf ",
+			"/etc/unbound/unbound.conf ",
 		},
 	}
 
@@ -565,9 +564,33 @@ func (r *WireguardReconciler) getDeployment(
 	return dep, nil
 }
 
-func getVolumes(w *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
-	// TODO: add configmap reference with unbound.conf
-	return []corev1.Volume{}, containerMounts{}
+func getVolumes(wireguard *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
+	if wireguard.Spec.ExternalDNS.Enabled {
+		volumes := []corev1.Volume{{
+			Name: "unbound-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: wireguard.Name,
+					},
+					Items: []corev1.KeyToPath{{
+						Key:  "unbound.conf",
+						Path: "unbound.conf",
+					}},
+				},
+			},
+		}}
+		mounts := containerMounts{
+			unbound: []corev1.VolumeMount{{
+				Name:      "unbound-config",
+				ReadOnly:  true,
+				MountPath: "/etc/unbound",
+			}},
+		}
+		return volumes, mounts
+	} else {
+		return []corev1.Volume{}, containerMounts{}
+	}
 }
 
 // getLabels returns the labels for selecting the resources
@@ -599,14 +622,14 @@ func getWireguardImage() string {
 func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&vpnv1alpha1.Wireguard{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
 }
 
 type containerMounts struct {
-	wireguard []corev1.VolumeMount
-	unbound   []corev1.VolumeMount
+	unbound []corev1.VolumeMount
 }
 
 func toPtr[V any](o V) *V { return &o }

@@ -111,8 +111,6 @@ func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
 			if err != nil {
 				return err
 			}
-			containers := deploy.Spec.Template.Spec.Containers
-			Expect(len(containers)).To(Equal(2))
 
 			context := &corev1.SecurityContext{
 				Privileged: toPtr(true),
@@ -123,6 +121,7 @@ func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
 					},
 				},
 			}
+			containers := deploy.Spec.Template.Spec.Containers
 			wg := containers[0]
 			Expect(wg.SecurityContext).To(BeEquivalentTo(context))
 
@@ -135,13 +134,18 @@ func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
 
 			dnsConfig := deploy.Spec.Template.Spec.DNSConfig
 			dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
+			volumes := deploy.Spec.Template.Spec.Volumes
 			if wireguard.Spec.ExternalDNS.Enabled {
+				Expect(len(containers)).To(Equal(2))
+				Expect(len(volumes)).To(Equal(1))
 				want := &corev1.PodDNSConfig{
 					Nameservers: []string{"127.0.0.1"},
 				}
 				Expect(dnsConfig).To(BeEquivalentTo(want))
 				Expect(dnsPolicy).To(Equal(corev1.DNSNone))
 			} else {
+				Expect(len(containers)).To(Equal(1))
+				Expect(len(volumes)).To(Equal(0))
 				want := &corev1.PodDNSConfig{}
 				Expect(dnsConfig).To(BeEquivalentTo(want))
 				Expect(dnsPolicy).To(Equal(corev1.DNSDefault))
