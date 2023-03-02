@@ -4,6 +4,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type ExternalDNS struct {
+	// Indicates whether to enable external dns
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Image defines the image of the unbound container
+	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
+	Image string `json:"image,omitempty"`
+}
+
 // WireguardSpec defines the desired state of Wireguard
 type WireguardSpec struct {
 	// Replicas defines the number of Wireguard instances
@@ -24,9 +34,8 @@ type WireguardSpec struct {
 	// +kubebuilder:default="192.168.1.1/24"
 	Network string `json:"network,omitempty"`
 
-	// Indicates whether to use kubernetes' internal DNS
-	// +kubebuilder:default=false
-	UseInternalDNS bool `json:"useInternalDNS,omitempty"`
+	// Provides configuration of the unbound sidecar
+	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
 }
 
 // WireguardStatus defines the observed state of Wireguard

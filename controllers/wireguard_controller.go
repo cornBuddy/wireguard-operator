@@ -1,10 +1,12 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -214,7 +216,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 
-		log.Info("Creating a new Deployment",
+		log.Info("Creating a new ConfigMap",
 			"ConfigMap.Namespace", cm.Namespace, "ConfigMap.Name", cm.Name)
 		if err = r.Create(ctx, cm); err != nil {
 			log.Error(err, "Failed to create new ConfigMap",
@@ -226,6 +228,8 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// We will requeue the reconciliation so that we can ensure the state
 		// and move forward for the next operations
 		return ctrl.Result{Requeue: true}, nil
+	} else {
+		return ctrl.Result{}, err
 	}
 
 	// Check if the deployment already exists, if not create a new one
@@ -411,13 +415,29 @@ func (r *WireguardReconciler) serviceForWireguard(
 func (r *WireguardReconciler) getConfigMap(
 	wireguard *vpnv1alpha1.Wireguard) (*corev1.ConfigMap, error) {
 
+	tmpl, err := os.ReadFile("./unbound.conf.tmpl")
+	if err != nil {
+		return nil, err
+	}
+
+	unboundTemplate, err := template.New("unbound").Parse(string(tmpl))
+	if err != nil {
+		return nil, err
+	}
+
+	buf := new(bytes.Buffer)
+	if err := unboundTemplate.Execute(buf, wireguard.Spec); err != nil {
+		return nil, err
+	}
+	unboundConf := buf.String()
+
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
 			Namespace: wireguard.Namespace,
 		},
 		Data: map[string]string{
-			"resolv.conf": "nameserver 127.0.0.1",
+			"unbound.conf": unboundConf,
 		},
 	}
 
@@ -432,7 +452,7 @@ func (r *WireguardReconciler) getDeployment(
 	volumes, mounts := getVolumes(wireguard)
 
 	wireguardContainer := corev1.Container{
-		Image:           imageForWireguard(),
+		Image:           getWireguardImage(),
 		Name:            "wireguard",
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		SecurityContext: &corev1.SecurityContext{
@@ -486,6 +506,18 @@ func (r *WireguardReconciler) getDeployment(
 		},
 		VolumeMounts: mounts.wireguard,
 	}
+	unboundContainer := corev1.Container{
+		Image:           wireguard.Spec.ExternalDNS.Image,
+		Name:            "unbound",
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Command:         []string{"unbound"},
+		VolumeMounts:    mounts.unbound,
+		Args: []string{
+			"-d",
+			"-c",
+			"{{ .Values.unbound.configDir }}/unbound.conf ",
+		},
+	}
 
 	podSpec := &corev1.PodSpec{
 		SecurityContext: &corev1.PodSecurityContext{
@@ -499,11 +531,12 @@ func (r *WireguardReconciler) getDeployment(
 		},
 		Volumes: volumes,
 	}
-	if !wireguard.Spec.UseInternalDNS {
+	if wireguard.Spec.ExternalDNS.Enabled {
 		podSpec.DNSPolicy = corev1.DNSNone
 		podSpec.DNSConfig = &corev1.PodDNSConfig{
 			Nameservers: []string{"127.0.0.1"},
 		}
+		podSpec.Containers = append(podSpec.Containers, unboundContainer)
 	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -533,13 +566,14 @@ func (r *WireguardReconciler) getDeployment(
 }
 
 func getVolumes(w *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
+	// TODO: add configmap reference with unbound.conf
 	return []corev1.Volume{}, containerMounts{}
 }
 
 // getLabels returns the labels for selecting the resources
 // More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
 func getLabels(name string) map[string]string {
-	imageTag := strings.Split(imageForWireguard(), ":")[1]
+	imageTag := strings.Split(getWireguardImage(), ":")[1]
 	return map[string]string{
 		"app.kubernetes.io/name":       "Wireguard",
 		"app.kubernetes.io/instance":   name,
@@ -549,9 +583,9 @@ func getLabels(name string) map[string]string {
 	}
 }
 
-// imageForWireguard gets the Operand image which is managed by this controller
+// getWireguardImage gets the Operand image which is managed by this controller
 // from the WIREGUARD_IMAGE environment variable defined in the config/manager/manager.yaml
-func imageForWireguard() string {
+func getWireguardImage() string {
 	image, found := os.LookupEnv("WIREGUARD_IMAGE")
 	if !found {
 		return "linuxserver/wireguard:1.0.20210914"
@@ -572,6 +606,7 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 type containerMounts struct {
 	wireguard []corev1.VolumeMount
+	unbound   []corev1.VolumeMount
 }
 
 func toPtr[V any](o V) *V { return &o }

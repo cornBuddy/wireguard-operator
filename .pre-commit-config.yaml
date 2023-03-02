@@ -30,3 +30,15 @@ repos:
         language: system
         files: \.go$
         pass_filenames: false
+      - id: make-tidy
+        name: make tidy
+        entry: make tidy
+        language: system
+        files: \.go$
+        pass_filenames: false
+      - id: make-test
+        name: make test
+        entry: make test
+        language: system
+        files: \.go$
+        pass_filenames: false
