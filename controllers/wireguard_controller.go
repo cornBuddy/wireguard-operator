@@ -52,10 +52,10 @@ type WireguardReconciler struct {
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-
 // It is essential for the controller's reconciliation loop to be idempotent. By following the Operator
 // pattern you will create Controllers which provide a reconcile function
 // responsible for synchronizing resources until the desired state is reached on the cluster.
@@ -315,7 +315,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	err = r.Get(ctx, key, service)
 	if err != nil && apierrors.IsNotFound(err) {
 		// Define a new service
-		service, err := r.serviceForWireguard(wireguard)
+		service, err := r.getService(wireguard)
 		if err != nil {
 			log.Error(err, "Failed to define new Service resource for Wireguard")
 			// The following implementation will update the status
@@ -386,7 +386,7 @@ func (r *WireguardReconciler) doFinalizerOperationsForWireguard(cr *vpnv1alpha1.
 			cr.Namespace))
 }
 
-func (r *WireguardReconciler) serviceForWireguard(
+func (r *WireguardReconciler) getService(
 	wireguard *vpnv1alpha1.Wireguard) (*corev1.Service, error) {
 	ls := getLabels(wireguard.Name)
 
@@ -415,12 +415,7 @@ func (r *WireguardReconciler) serviceForWireguard(
 func (r *WireguardReconciler) getConfigMap(
 	wireguard *vpnv1alpha1.Wireguard) (*corev1.ConfigMap, error) {
 
-	tmpl, err := os.ReadFile("./unbound.conf.tmpl")
-	if err != nil {
-		return nil, err
-	}
-
-	unboundTemplate, err := template.New("unbound").Parse(string(tmpl))
+	unboundTemplate, err := template.New("unbound").Parse(unboundConfTmpl)
 	if err != nil {
 		return nil, err
 	}
@@ -443,6 +438,33 @@ func (r *WireguardReconciler) getConfigMap(
 
 	return &configMap, nil
 }
+
+// template of the unbound config
+const unboundConfTmpl = `
+remote-control:
+	control-enable: yes
+	control-interface: 127.0.0.1
+	control-use-cert: no
+server:
+	num-threads: 1
+	verbosity: 1
+	interface: 0.0.0.0
+	max-udp-size: 3072
+	access-control: 0.0.0.0/0 refuse
+	access-control: 127.0.0.1 allow
+	access-control: {{ .Network }} allow
+	private-address: {{ .Network }}
+	hide-identity: yes
+	hide-version: yes
+	harden-glue: yes
+	harden-dnssec-stripped: yes
+	harden-referral-path: yes
+	unwanted-reply-threshold: 10000000
+	val-log-level: 1
+	cache-min-ttl: 1800
+	cache-max-ttl: 14400
+	prefetch: yes
+	prefetch-key: yes`
 
 // getDeployment returns a Wireguard Deployment object
 func (r *WireguardReconciler) getDeployment(
