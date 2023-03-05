@@ -7,10 +7,12 @@ import (
 type ExternalDNS struct {
 	// Indicates whether to enable external dns
 	// +kubebuilder:default=true
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Image defines the image of the unbound container
 	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Image string `json:"image,omitempty"`
 }
 
@@ -23,18 +25,22 @@ type WireguardSpec struct {
 	// +kubebuilder:validation:Maximum=3
 	// +kubebuilder:validation:ExclusiveMaximum=false
 	// +kubebuilder:default=1
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Replicas int32 `json:"replicas,omitempty"`
 
 	// Port defines the port that will be used to init the container with the image
 	// +kubebuilder:default=51820
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ContainerPort int32 `json:"containerPort,omitempty"`
 
 	// Network space to use
 	// TODO: add validation
 	// +kubebuilder:default="192.168.1.1/24"
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	Network string `json:"network,omitempty"`
 
 	// Provides configuration of the unbound sidecar
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
 }
 

@@ -135,9 +135,13 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			log.Info("Performing Finalizer Operations for Wireguard before delete CR")
 
 			// Let's add here an status "Downgrade" to define that this resource begin its process to be terminated.
-			meta.SetStatusCondition(&wireguard.Status.Conditions, metav1.Condition{Type: typeDegradedWireguard,
-				Status: metav1.ConditionUnknown, Reason: "Finalizing",
-				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", wireguard.Name)})
+			condition := metav1.Condition{
+				Type:    typeDegradedWireguard,
+				Status:  metav1.ConditionUnknown,
+				Reason:  "Finalizing",
+				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", wireguard.Name),
+			}
+			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
 
 			if err := r.Status().Update(ctx, wireguard); err != nil {
 				log.Error(err, "Failed to update Wireguard status")
@@ -161,9 +165,13 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{}, err
 			}
 
-			meta.SetStatusCondition(&wireguard.Status.Conditions, metav1.Condition{Type: typeDegradedWireguard,
-				Status: metav1.ConditionTrue, Reason: "Finalizing",
-				Message: fmt.Sprintf("Finalizer operations for custom resource %s name were successfully accomplished", wireguard.Name)})
+			condition = metav1.Condition{
+				Type:    typeDegradedWireguard,
+				Status:  metav1.ConditionTrue,
+				Reason:  "Finalizing",
+				Message: fmt.Sprintf("Finalizer operations for custom resource %s name were successfully accomplished", wireguard.Name),
+			}
+			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
 
 			if err := r.Status().Update(ctx, wireguard); err != nil {
 				log.Error(err, "Failed to update Wireguard status")
@@ -193,41 +201,19 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	configMap := &corev1.ConfigMap{}
 	if err = r.Get(ctx, key, configMap); err == nil {
 		log.Info("Ensured that ConfigMap is created",
-			"ConfigMap.Namespace", wireguard.Namespace, "ConfigMap.Name", wireguard.Name)
+			"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
 	} else if apierrors.IsNotFound(err) {
-		cm, err := r.getConfigMap(wireguard)
-		if err != nil {
-			log.Error(err, "Failed to define new ConfigMap resource for Wireguard")
-
-			msg := fmt.Sprintf("Failed to create ConfigMap for the custom resource (%s): (%s)", wireguard.Name, err)
-			condition := metav1.Condition{
-				Type:    typeAvailableWireguard,
-				Status:  metav1.ConditionFalse,
-				Reason:  "Reconciling",
-				Message: msg,
-			}
-			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
-
-			if err := r.Status().Update(ctx, wireguard); err != nil {
-				log.Error(err, "Failed to update Wireguard status")
-				return ctrl.Result{}, err
-			}
-
+		log.Info("Creating configmap for",
+			"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
+		if err := r.createConfigMap(wireguard, ctx); err != nil {
+			log.Error(err, "Cannot create configmap for",
+				"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
 			return ctrl.Result{}, err
+		} else {
+			log.Info("ConfigMap created successfully for",
+				"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
+			return ctrl.Result{Requeue: true}, nil
 		}
-
-		log.Info("Creating a new ConfigMap",
-			"ConfigMap.Namespace", cm.Namespace, "ConfigMap.Name", cm.Name)
-		if err = r.Create(ctx, cm); err != nil {
-			log.Error(err, "Failed to create new ConfigMap",
-				"ConfigMap.Namespace", cm.Namespace, "ConfigMap.Name", cm.Name)
-			return ctrl.Result{}, err
-		}
-
-		// ConfigMap created successfully
-		// We will requeue the reconciliation so that we can ensure the state
-		// and move forward for the next operations
-		return ctrl.Result{Requeue: true}, nil
 	} else {
 		return ctrl.Result{}, err
 	}
@@ -242,9 +228,13 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			log.Error(err, "Failed to define new Deployment resource for Wireguard")
 
 			// The following implementation will update the status
-			meta.SetStatusCondition(&wireguard.Status.Conditions, metav1.Condition{Type: typeAvailableWireguard,
-				Status: metav1.ConditionFalse, Reason: "Reconciling",
-				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", wireguard.Name, err)})
+			condition := metav1.Condition{
+				Type:    typeAvailableWireguard,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", wireguard.Name, err),
+			}
+			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
 
 			if err := r.Status().Update(ctx, wireguard); err != nil {
 				log.Error(err, "Failed to update Wireguard status")
@@ -411,6 +401,30 @@ func (r *WireguardReconciler) getService(
 	return service, nil
 }
 
+func (r *WireguardReconciler) createConfigMap(
+	wireguard *vpnv1alpha1.Wireguard, ctx context.Context) error {
+
+	cm, err := r.getConfigMap(wireguard)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to create ConfigMap for the custom resource (%s): (%s)", wireguard.Name, err)
+		condition := metav1.Condition{
+			Type:    typeAvailableWireguard,
+			Status:  metav1.ConditionFalse,
+			Reason:  "Reconciling",
+			Message: msg,
+		}
+		meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
+		if err := r.Status().Update(ctx, wireguard); err != nil {
+			return err
+		}
+		return err
+	}
+	if err = r.Create(ctx, cm); err != nil {
+		return err
+	}
+	return nil
+}
+
 // getConfigMap returns a Wireguard ConfigMap object
 func (r *WireguardReconciler) getConfigMap(
 	wireguard *vpnv1alpha1.Wireguard) (*corev1.ConfigMap, error) {
@@ -536,7 +550,7 @@ func (r *WireguardReconciler) getDeployment(
 		Args: []string{
 			"-d",
 			"-c",
-			"/etc/unbound/unbound.conf ",
+			"/etc/unbound/unbound.conf",
 		},
 	}
 
@@ -552,6 +566,7 @@ func (r *WireguardReconciler) getDeployment(
 		},
 		Volumes: volumes,
 	}
+	// FIXME: spec is always default
 	if wireguard.Spec.ExternalDNS.Enabled {
 		podSpec.DNSPolicy = corev1.DNSNone
 		podSpec.DNSConfig = &corev1.PodDNSConfig{
@@ -587,6 +602,7 @@ func (r *WireguardReconciler) getDeployment(
 }
 
 func getVolumes(wireguard *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
+	// FIXME: spec is always default
 	if wireguard.Spec.ExternalDNS.Enabled {
 		volumes := []corev1.Volume{{
 			Name: "unbound-config",
