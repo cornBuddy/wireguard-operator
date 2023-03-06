@@ -259,7 +259,6 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			"Wireguard.Namespace", wireguard.Namespace,
 			"Wireguard.Name", wireguard.Name)
 		serviceIp := service.Spec.ClusterIP
-		log.Info(fmt.Sprintf("serviceIp: %s\n", serviceIp))
 		if err := r.createSecret(wireguard, serviceIp, ctx); err != nil {
 			log.Error(err, "Cannot create Secret for",
 				"Wireguard.Namespace", wireguard.Namespace,
@@ -572,9 +571,10 @@ func (r *WireguardReconciler) getSecret(
 		"wg-client": peerConfig,
 	}
 	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
-	ep := wireguard.Spec.EndpointAddress
 	// FIXME: do not use container port
 	port := wireguard.Spec.ContainerPort
+	peerEndpoint := fmt.Sprintf("%s:%d", serviceIp, port)
+	ep := wireguard.Spec.EndpointAddress
 	serverEndpoint := fmt.Sprintf("%s:%d", ep, port)
 	dns := getFirstIpInSubnet(wireguard.Spec.Address)
 	specs := map[string]any{
@@ -584,7 +584,7 @@ func (r *WireguardReconciler) getSecret(
 			ListenPort:    wireguard.Spec.ContainerPort,
 			PeerPublicKey: peer.PublicKey().String(),
 			PeerAddress:   peerAddress,
-			PeerEndpoint:  serviceIp,
+			PeerEndpoint:  peerEndpoint,
 		},
 		"wg-client": clientSpec{
 			Address:         peerAddress,
@@ -668,10 +668,13 @@ Endpoint = {{ .ServerEndpoint }}`
 func (r *WireguardReconciler) getDeployment(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
 
+	volumes, mounts := getVolumes(wireguard)
+
 	wireguardContainer := corev1.Container{
 		Image:           getWireguardImage(),
 		Name:            "wireguard",
 		ImagePullPolicy: corev1.PullIfNotPresent,
+		VolumeMounts:    mounts.wireguard,
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: toPtr(true),
 			Capabilities: &corev1.Capabilities{
@@ -722,8 +725,6 @@ func (r *WireguardReconciler) getDeployment(
 			PeriodSeconds:       10,
 		},
 	}
-
-	volumes, mounts := getVolumes(wireguard)
 
 	unboundContainer := corev1.Container{
 		Image:           wireguard.Spec.ExternalDNS.Image,
@@ -788,9 +789,29 @@ func (r *WireguardReconciler) getDeployment(
 }
 
 func getVolumes(wireguard *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
+	volumes := []corev1.Volume{{
+		Name: "wireguard-config",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: wireguard.Name,
+				Items: []corev1.KeyToPath{{
+					Key:  "wg-server",
+					Path: "wg0.conf",
+				}},
+			},
+		},
+	}}
+	mounts := containerMounts{
+		unbound: []corev1.VolumeMount{},
+		wireguard: []corev1.VolumeMount{{
+			Name:      "wireguard-config",
+			ReadOnly:  true,
+			MountPath: "/config",
+		}},
+	}
 	// FIXME: spec is always default
 	if wireguard.Spec.ExternalDNS.Enabled {
-		volumes := []corev1.Volume{{
+		volumes = append(volumes, corev1.Volume{
 			Name: "unbound-config",
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -803,18 +824,14 @@ func getVolumes(wireguard *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMou
 					}},
 				},
 			},
-		}}
-		mounts := containerMounts{
-			unbound: []corev1.VolumeMount{{
-				Name:      "unbound-config",
-				ReadOnly:  true,
-				MountPath: "/etc/unbound",
-			}},
-		}
-		return volumes, mounts
-	} else {
-		return []corev1.Volume{}, containerMounts{}
+		})
+		mounts.unbound = append(mounts.unbound, corev1.VolumeMount{
+			Name:      "unbound-config",
+			ReadOnly:  true,
+			MountPath: "/etc/unbound",
+		})
 	}
+	return volumes, mounts
 }
 
 // getLabels returns the labels for selecting the resources
@@ -854,7 +871,8 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 type containerMounts struct {
-	unbound []corev1.VolumeMount
+	unbound   []corev1.VolumeMount
+	wireguard []corev1.VolumeMount
 }
 
 func toPtr[V any](o V) *V { return &o }
