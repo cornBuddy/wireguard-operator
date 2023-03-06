@@ -41,6 +41,10 @@ spec:
                   with the image
                 format: int32
                 type: integer
+              endpointAddress:
+                default: localhost
+                description: Public address to the peer created
+                type: string
               externalDns:
                 description: Provides configuration of the unbound sidecar
                 properties:
@@ -54,8 +58,8 @@ spec:
                     type: string
                 type: object
               network:
-                default: 192.168.1.1/24
-                description: 'Network space to use TODO: add validation'
+                default: 192.168.254.253/30
+                description: Address space to use
                 type: string
               replicas:
                 default: 1

@@ -33,15 +33,19 @@ type WireguardSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ContainerPort int32 `json:"containerPort,omitempty"`
 
-	// Network space to use
-	// TODO: add validation
-	// +kubebuilder:default="192.168.1.1/24"
+	// Address space to use
+	// +kubebuilder:default="192.168.254.253/30"
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Network string `json:"network,omitempty"`
+	Address string `json:"network,omitempty"`
 
 	// Provides configuration of the unbound sidecar
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
+
+	// Public address to the peer created
+	// +kubebuilder:default="localhost"
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	EndpointAddress string `json:"endpointAddress,omitempty"`
 }
 
 // WireguardStatus defines the observed state of Wireguard

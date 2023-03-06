@@ -121,7 +121,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+run: manifests generate install samples fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 # If you wish built the manager image targeting other platforms you can use the --platform flag.
@@ -158,8 +158,13 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
+.PHONY: samples
+samples: manifests kustomize ## Deploy samples
+	$(KUSTOMIZE) build config/samples | kubectl apply -f -
+
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=false -f -
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=false -f -
 
 .PHONY: deploy

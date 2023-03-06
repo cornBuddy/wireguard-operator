@@ -8,6 +8,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/c-robinson/iplib"
+	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -199,19 +201,74 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Check if the confgimap already exists, if not create a new one
 	configMap := &corev1.ConfigMap{}
-	if err = r.Get(ctx, key, configMap); err == nil {
+	if err := r.Get(ctx, key, configMap); err == nil {
 		log.Info("Ensured that ConfigMap is created",
-			"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
+			"Wireguard.Namespace", wireguard.Namespace,
+			"Wireguard.Name", wireguard.Name)
 	} else if apierrors.IsNotFound(err) {
-		log.Info("Creating configmap for",
-			"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
+		log.Info("Creating ConfigMap for",
+			"Wireguard.Namespace", wireguard.Namespace,
+			"Wireguard.Name", wireguard.Name)
 		if err := r.createConfigMap(wireguard, ctx); err != nil {
-			log.Error(err, "Cannot create configmap for",
-				"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
+			log.Error(err, "Cannot create ConfigMap for",
+				"Wireguard.Namespace", wireguard.Namespace,
+				"Wireguard.Name", wireguard.Name)
 			return ctrl.Result{}, err
 		} else {
 			log.Info("ConfigMap created successfully for",
-				"Wireguard.Namespace", wireguard.Namespace, "Wireguard.Name", wireguard.Name)
+				"Wireguard.Namespace", wireguard.Namespace,
+				"Wireguard.Name", wireguard.Name)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	} else {
+		return ctrl.Result{}, err
+	}
+
+	service := &corev1.Service{}
+	if err := r.Get(ctx, key, service); err == nil {
+		log.Info("Ensured that Service is created",
+			"Wireguard.Namespace", wireguard.Namespace,
+			"Wireguard.Name", wireguard.Name)
+	} else if apierrors.IsNotFound(err) {
+		log.Info("Creating Service for",
+			"Wireguard.Namespace", wireguard.Namespace,
+			"Wireguard.Name", wireguard.Name)
+		if err := r.createService(wireguard, ctx); err != nil {
+			log.Error(err, "Cannot create Service for",
+				"Wireguard.Namespace", wireguard.Namespace,
+				"Wireguard.Name", wireguard.Name)
+			return ctrl.Result{}, err
+		} else {
+			log.Info("Service created successfully for",
+				"Wireguard.Namespace", wireguard.Namespace,
+				"Wireguard.Name", wireguard.Name)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	} else {
+		return ctrl.Result{}, err
+	}
+
+	// Check if secret already exists. If not, create a new one
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, key, secret); err == nil {
+		log.Info("Ensured that Secret is created",
+			"Wireguard.Namespace", wireguard.Namespace,
+			"Wireguard.Name", wireguard.Name)
+	} else if apierrors.IsNotFound(err) {
+		log.Info("Creating Secret for",
+			"Wireguard.Namespace", wireguard.Namespace,
+			"Wireguard.Name", wireguard.Name)
+		serviceIp := service.Spec.ClusterIP
+		log.Info(fmt.Sprintf("serviceIp: %s\n", serviceIp))
+		if err := r.createSecret(wireguard, serviceIp, ctx); err != nil {
+			log.Error(err, "Cannot create Secret for",
+				"Wireguard.Namespace", wireguard.Namespace,
+				"Wireguard.Name", wireguard.Name)
+			return ctrl.Result{}, err
+		} else {
+			log.Info("Secret created successfully for",
+				"Wireguard.Namespace", wireguard.Namespace,
+				"Wireguard.Name", wireguard.Name)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
@@ -301,43 +358,6 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	service := &corev1.Service{}
-	err = r.Get(ctx, key, service)
-	if err != nil && apierrors.IsNotFound(err) {
-		// Define a new service
-		service, err := r.getService(wireguard)
-		if err != nil {
-			log.Error(err, "Failed to define new Service resource for Wireguard")
-			// The following implementation will update the status
-			msg := fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", wireguard.Name, err)
-			cdtn := metav1.Condition{
-				Type:    typeAvailableWireguard,
-				Status:  metav1.ConditionFalse,
-				Reason:  "Reconciling",
-				Message: msg,
-			}
-			meta.SetStatusCondition(&wireguard.Status.Conditions, cdtn)
-			if err := r.Status().Update(ctx, wireguard); err != nil {
-				log.Error(err, "Failed to update Wireguard status")
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, err
-		}
-
-		log.Info("Creating a new Service",
-			"Service.Namespace", service.Namespace, "Service.Name", service.Name)
-		if err = r.Create(ctx, service); err != nil {
-			log.Error(err, "Failed to create new Service",
-				"Service.Namespace", service.Namespace, "Service.Name", service.Name)
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{Requeue: true}, nil
-	} else if err != nil {
-		log.Error(err, "Failed to get Service")
-		// Let's return the error for the reconciliation be re-trigged again
-		return ctrl.Result{}, err
-	}
-
 	// The following implementation will update the status
 	msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, size)
 	cdnt := metav1.Condition{
@@ -401,6 +421,30 @@ func (r *WireguardReconciler) getService(
 	return service, nil
 }
 
+func (r *WireguardReconciler) createService(
+	wireguard *vpnv1alpha1.Wireguard, ctx context.Context) error {
+
+	service, err := r.getService(wireguard)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", wireguard.Name, err)
+		cdtn := metav1.Condition{
+			Type:    typeAvailableWireguard,
+			Status:  metav1.ConditionFalse,
+			Reason:  "Reconciling",
+			Message: msg,
+		}
+		meta.SetStatusCondition(&wireguard.Status.Conditions, cdtn)
+		if err := r.Status().Update(ctx, wireguard); err != nil {
+			return err
+		}
+		return err
+	}
+	if err := r.Create(ctx, service); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *WireguardReconciler) createConfigMap(
 	wireguard *vpnv1alpha1.Wireguard, ctx context.Context) error {
 
@@ -440,7 +484,7 @@ func (r *WireguardReconciler) getConfigMap(
 	}
 	unboundConf := buf.String()
 
-	configMap := corev1.ConfigMap{
+	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
 			Namespace: wireguard.Namespace,
@@ -450,7 +494,11 @@ func (r *WireguardReconciler) getConfigMap(
 		},
 	}
 
-	return &configMap, nil
+	if err := ctrl.SetControllerReference(wireguard, configMap, r.Scheme); err != nil {
+		return nil, err
+	}
+
+	return configMap, nil
 }
 
 // template of the unbound config
@@ -466,8 +514,8 @@ server:
 	max-udp-size: 3072
 	access-control: 0.0.0.0/0 refuse
 	access-control: 127.0.0.1 allow
-	access-control: {{ .Network }} allow
-	private-address: {{ .Network }}
+	access-control: {{ .Address }} allow
+	private-address: {{ .Address }}
 	hide-identity: yes
 	hide-version: yes
 	harden-glue: yes
@@ -480,12 +528,145 @@ server:
 	prefetch: yes
 	prefetch-key: yes`
 
+func (r *WireguardReconciler) createSecret(
+	wireguard *vpnv1alpha1.Wireguard, serviceIp string, ctx context.Context) error {
+
+	server, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		return err
+	}
+	peer, err := wgtypes.GeneratePrivateKey()
+	if err != nil {
+		return err
+	}
+
+	secret, err := r.getSecret(wireguard, serviceIp, server, peer)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to create Secret for the custom resource (%s): (%s)", wireguard.Name, err)
+		condition := metav1.Condition{
+			Type:    typeAvailableWireguard,
+			Status:  metav1.ConditionFalse,
+			Reason:  "Reconciling",
+			Message: msg,
+		}
+		meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
+		if err := r.Status().Update(ctx, wireguard); err != nil {
+			return err
+		}
+		return err
+	}
+
+	if err := r.Create(ctx, secret); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *WireguardReconciler) getSecret(
+	wireguard *vpnv1alpha1.Wireguard, serviceIp string, server, peer wgtypes.Key) (*corev1.Secret, error) {
+
+	keys := []string{"wg-server", "wg-client"}
+	configs := map[string]string{
+		"wg-server": serverConfig,
+		"wg-client": peerConfig,
+	}
+	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
+	ep := wireguard.Spec.EndpointAddress
+	// FIXME: do not use container port
+	port := wireguard.Spec.ContainerPort
+	serverEndpoint := fmt.Sprintf("%s:%d", ep, port)
+	dns := getFirstIpInSubnet(wireguard.Spec.Address)
+	specs := map[string]any{
+		"wg-server": serverSpec{
+			Address:       wireguard.Spec.Address,
+			PrivateKey:    server.String(),
+			ListenPort:    wireguard.Spec.ContainerPort,
+			PeerPublicKey: peer.PublicKey().String(),
+			PeerAddress:   peerAddress,
+			PeerEndpoint:  serviceIp,
+		},
+		"wg-client": clientSpec{
+			Address:         peerAddress,
+			PrivateKey:      peer.String(),
+			ServerPublicKey: server.PublicKey().String(),
+			ServerEndpoint:  serverEndpoint,
+			DNS:             dns,
+		},
+	}
+	data := map[string]string{}
+
+	for _, key := range keys {
+		tmpl, err := template.New(key).Parse(configs[key])
+		if err != nil {
+			return nil, err
+		}
+
+		buf := new(bytes.Buffer)
+		if err := tmpl.Execute(buf, specs[key]); err != nil {
+			return nil, err
+		}
+
+		data[key] = buf.String()
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wireguard.Name,
+			Namespace: wireguard.Namespace,
+		},
+		StringData: data,
+	}
+
+	if err := ctrl.SetControllerReference(wireguard, secret, r.Scheme); err != nil {
+		return nil, err
+	}
+
+	return secret, nil
+}
+
+type serverSpec struct {
+	Address       string
+	PrivateKey    string
+	ListenPort    int32
+	PeerPublicKey string
+	PeerAddress   string
+	PeerEndpoint  string
+}
+
+type clientSpec struct {
+	Address         string
+	PrivateKey      string
+	DNS             string
+	ServerPublicKey string
+	ServerEndpoint  string
+}
+
+// represents go-template for the server config
+const serverConfig = `[Interface]
+Address = {{ .Address }}
+PrivateKey = {{ .PrivateKey }}
+ListenPort = {{ .ListenPort }}
+
+[Peer]
+PublicKey = {{ .PeerPublicKey }}
+AllowedIPs = {{ .PeerAddress }}
+Endpoint = {{ .PeerEndpoint }}
+PersistentKeepalive = 25`
+
+const peerConfig = `[Interface]
+Address = {{ .Address }}
+PrivateKey = {{ .PrivateKey }}
+DNS = {{ .DNS }}
+
+[Peer]
+PublicKey = {{ .ServerPublicKey }}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = {{ .ServerEndpoint }}`
+
 // getDeployment returns a Wireguard Deployment object
 func (r *WireguardReconciler) getDeployment(
 	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
-	ls := getLabels(wireguard.Name)
-	replicas := wireguard.Spec.Replicas
-	volumes, mounts := getVolumes(wireguard)
 
 	wireguardContainer := corev1.Container{
 		Image:           getWireguardImage(),
@@ -541,6 +722,9 @@ func (r *WireguardReconciler) getDeployment(
 			PeriodSeconds:       10,
 		},
 	}
+
+	volumes, mounts := getVolumes(wireguard)
+
 	unboundContainer := corev1.Container{
 		Image:           wireguard.Spec.ExternalDNS.Image,
 		Name:            "unbound",
@@ -574,6 +758,8 @@ func (r *WireguardReconciler) getDeployment(
 		}
 		podSpec.Containers = append(podSpec.Containers, unboundContainer)
 	}
+
+	replicas := wireguard.Spec.Replicas
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
@@ -582,11 +768,11 @@ func (r *WireguardReconciler) getDeployment(
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
+				MatchLabels: getLabels(wireguard.Name),
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
+					Labels: getLabels(wireguard.Name),
 				},
 				Spec: *podSpec,
 			},
@@ -661,6 +847,7 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&vpnv1alpha1.Wireguard{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
@@ -671,3 +858,23 @@ type containerMounts struct {
 }
 
 func toPtr[V any](o V) *V { return &o }
+
+// returns last ip in the subnet. examples:
+// getLastIpInSubnet("192.168.254.253/30") -> "192.168.254.254/32"
+// getLastIpInSubnet("192.168.1.1/24") -> "192.168.1.254/32"
+func getLastIpInSubnet(cidr string) string {
+	// ignore error since cidr should be validated already
+	_, net, _ := iplib.ParseCIDR(cidr)
+	last := net.LastAddress().String()
+	return fmt.Sprintf("%s/32", last)
+}
+
+// returns first ip in the subnet. examples:
+// getLastIpInSubnet("192.168.254.253/30") -> "192.168.254.253/32"
+// getLastIpInSubnet("192.168.1.1/24") -> "192.168.1.1/32"
+func getFirstIpInSubnet(cidr string) string {
+	// ignore error since cidr should be validated already
+	_, net, _ := iplib.ParseCIDR(cidr)
+	last := net.FirstAddress().String()
+	return fmt.Sprintf("%s/32", last)
+}

@@ -98,10 +98,24 @@ func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
 
 		By("Reconciling the custom resource created")
 		Expect(reconcileWireguard(ctx, key)).To(Succeed())
+
 		By("Checking if ConfigMap was successfully created in the reconciliation")
 		Eventually(func() error {
 			found := &corev1.ConfigMap{}
 			return k8sClient.Get(ctx, key, found)
+		}, timeout, interval).Should(Succeed())
+
+		By("Checking if Secret was successfully created in the reconciliation")
+		Eventually(func() error {
+			secret := &corev1.Secret{}
+			if err := k8sClient.Get(ctx, key, secret); err != nil {
+				return err
+			}
+
+			Expect(secret.Data).To(HaveKey("wg-server"))
+			Expect(secret.Data).To(HaveKey("wg-client"))
+
+			return nil
 		}, timeout, interval).Should(Succeed())
 
 		By("Checking if Deployment was successfully created in the reconciliation")
@@ -182,3 +196,21 @@ func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
 		}, timeout, interval).Should(Succeed())
 	}
 }
+
+var _ = DescribeTable("getLastIpInSubnet",
+	func(input, want string) {
+		got := getLastIpInSubnet(input)
+		Expect(got).To(Equal(want))
+	},
+	Entry("smol", "192.168.254.253/30", "192.168.254.254/32"),
+	Entry("chungus", "192.168.1.1/24", "192.168.1.254/32"),
+)
+
+var _ = DescribeTable("getFirstIpInSubnet",
+	func(input, want string) {
+		got := getFirstIpInSubnet(input)
+		Expect(got).To(Equal(want))
+	},
+	Entry("smol", "192.168.254.253/30", "192.168.254.253/32"),
+	Entry("chungus", "192.168.1.1/24", "192.168.1.1/32"),
+)
