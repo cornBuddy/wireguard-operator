@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,15 +25,21 @@ type WireguardSpec struct {
 	// Address space to use
 	Address string `json:"network,omitempty"`
 
+	// +kubebuilder:default="localhost"
+
+	// Public address to the peer created
+	EndpointAddress string `json:"endpointAddress,omitempty"`
+
+	// FIXME: defaults for the struct provided twice
 	// +kubebuilder:default={enabled: true, image: "docker.io/klutchell/unbound:v1.17.1"}
 
 	// Provides configuration of the dns sidecar
 	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
 
-	// +kubebuilder:default="localhost"
+	// +optional
 
-	// Public address to the peer created
-	EndpointAddress string `json:"endpointAddress,omitempty"`
+	// Sidecar containers to run
+	Sidecars []corev1.Container `json:"sidecars,omitempty"`
 }
 
 type ExternalDNS struct {

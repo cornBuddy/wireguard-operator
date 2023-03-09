@@ -22,6 +22,29 @@ const (
 )
 
 var _ = Describe("Wireguard controller", func() {
+	sidecar := corev1.Container{
+		Name:  "wireguard-exporter",
+		Image: "docker.io/mindflavor/prometheus-wireguard-exporter:3.6.6",
+		Args: []string{
+			"--verbose", "true",
+			"--extract_names_config_files", "/config/wg0.conf",
+		},
+		VolumeMounts: []corev1.VolumeMount{{
+			Name:      "wireguard-config",
+			ReadOnly:  true,
+			MountPath: "/config",
+		}},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:  toPtr[int64](0),
+			RunAsGroup: toPtr[int64](0),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"NET_ADMIN",
+				},
+			},
+		},
+	}
+
 	cases := []testCase{{
 		context: "default configuration",
 		wireguard: &vpnv1alpha1.Wireguard{
@@ -42,6 +65,17 @@ var _ = Describe("Wireguard controller", func() {
 				ExternalDNS: vpnv1alpha1.ExternalDNS{
 					Enabled: false,
 				},
+			},
+		},
+	}, {
+		context: "configuration with sidecars",
+		wireguard: &vpnv1alpha1.Wireguard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "wireguard-sidecars",
+				Namespace: corev1.NamespaceDefault,
+			},
+			Spec: vpnv1alpha1.WireguardSpec{
+				Sidecars: []corev1.Container{sidecar},
 			},
 		},
 	}}
@@ -149,8 +183,9 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
 			dnsConfig := deploy.Spec.Template.Spec.DNSConfig
 			dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
 			volumes := deploy.Spec.Template.Spec.Volumes
+			sidecarsLen := len(wireguard.Spec.Sidecars)
 			if wireguard.Spec.ExternalDNS.Enabled {
-				Expect(len(containers)).To(Equal(2))
+				Expect(len(containers)).To(Equal(2 + sidecarsLen))
 				Expect(len(volumes)).To(Equal(2))
 				want := &corev1.PodDNSConfig{
 					Nameservers: []string{"127.0.0.1"},
@@ -158,7 +193,7 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
 				Expect(dnsConfig).To(BeEquivalentTo(want))
 				Expect(dnsPolicy).To(Equal(corev1.DNSNone))
 			} else {
-				Expect(len(containers)).To(Equal(1))
+				Expect(len(containers)).To(Equal(1 + sidecarsLen))
 				Expect(len(volumes)).To(Equal(1))
 				want := &corev1.PodDNSConfig{}
 				Expect(dnsConfig).To(BeEquivalentTo(want))

@@ -653,6 +653,7 @@ func (r *WireguardReconciler) getDeployment(
 		}
 		podSpec.Containers = append(podSpec.Containers, unboundContainer)
 	}
+	podSpec.Containers = append(podSpec.Containers, wireguard.Spec.Sidecars...)
 
 	replicas := wireguard.Spec.Replicas
 	dep := &appsv1.Deployment{
