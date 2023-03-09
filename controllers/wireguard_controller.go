@@ -542,6 +542,9 @@ const serverConfig = `[Interface]
 Address = {{ .Address }}
 PrivateKey = {{ .PrivateKey }}
 ListenPort = {{ .ListenPort }}
+PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT
+PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT
+PostUp = iptables --table nat --append POSTROUTING --source {{ .PeerAddress }} --out-interface eth0 --jump MASQUERADE
 
 [Peer]
 PublicKey = {{ .PeerPublicKey }}

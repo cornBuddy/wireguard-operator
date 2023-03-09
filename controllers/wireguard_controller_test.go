@@ -145,10 +145,23 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
 			if err := k8sClient.Get(ctx, key, secret); err != nil {
 				return err
 			}
-
 			Expect(secret.Data).To(HaveKey("wg-server"))
 			Expect(secret.Data).To(HaveKey("wg-client"))
 
+			peerAddr := getLastIpInSubnet(wireguard.Spec.Address)
+			masquerade := fmt.Sprintf(
+				"PostUp = iptables --table nat --append POSTROUTING --source %s --out-interface eth0 --jump MASQUERADE",
+				peerAddr,
+			)
+			mandatoryPostUps := []string{
+				"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
+				"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
+				masquerade,
+			}
+			cfg := secret.Data["wg-server"]
+			for _, postUp := range mandatoryPostUps {
+				Expect(cfg).To(ContainSubstring(postUp))
+			}
 			return nil
 		}, timeout, interval).Should(Succeed())
 
