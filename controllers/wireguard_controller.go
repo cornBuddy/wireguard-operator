@@ -21,20 +21,15 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 )
 
-const wireguardFinalizer = "vpn.ahova.com/finalizer"
-
 // Definitions to manage status conditions
 const (
 	// typeAvailableWireguard represents the status of the Deployment reconciliation
 	typeAvailableWireguard = "Available"
-	// typeDegradedWireguard represents the status used when the custom resource is deleted and the finalizer operations are must to occur.
-	typeDegradedWireguard = "Degraded"
 )
 
 // WireguardReconciler reconciles a Wireguard object
@@ -50,7 +45,6 @@ type WireguardReconciler struct {
 
 //+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
@@ -111,87 +105,6 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			log.Error(err, "Failed to re-fetch wireguard")
 			return ctrl.Result{}, err
 		}
-	}
-
-	// Let's add a finalizer. Then, we can define some operations which should
-	// occurs before the custom resource to be deleted.
-	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
-	if !controllerutil.ContainsFinalizer(wireguard, wireguardFinalizer) {
-		log.Info("Adding Finalizer for Wireguard")
-		if ok := controllerutil.AddFinalizer(wireguard, wireguardFinalizer); !ok {
-			log.Error(err, "Failed to add finalizer into the custom resource")
-			return ctrl.Result{Requeue: true}, nil
-		}
-
-		if err = r.Update(ctx, wireguard); err != nil {
-			log.Error(err, "Failed to update custom resource to add finalizer")
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Check if the Wireguard instance is marked to be deleted, which is
-	// indicated by the deletion timestamp being set.
-	isWireguardMarkedToBeDeleted := wireguard.GetDeletionTimestamp() != nil
-	if isWireguardMarkedToBeDeleted {
-		if controllerutil.ContainsFinalizer(wireguard, wireguardFinalizer) {
-			log.Info("Performing Finalizer Operations for Wireguard before delete CR")
-
-			// Let's add here an status "Downgrade" to define that this resource begin its process to be terminated.
-			condition := metav1.Condition{
-				Type:    typeDegradedWireguard,
-				Status:  metav1.ConditionUnknown,
-				Reason:  "Finalizing",
-				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", wireguard.Name),
-			}
-			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
-
-			if err := r.Status().Update(ctx, wireguard); err != nil {
-				log.Error(err, "Failed to update Wireguard status")
-				return ctrl.Result{}, err
-			}
-
-			// Perform all operations required before remove the finalizer and allow
-			// the Kubernetes API to remove the custom resource.
-			r.doFinalizerOperationsForWireguard(wireguard)
-
-			// TODO(user): If you add operations to the doFinalizerOperationsForWireguard method
-			// then you need to ensure that all worked fine before deleting and updating the Downgrade status
-			// otherwise, you should requeue here.
-
-			// Re-fetch the wireguard Custom Resource before update the status
-			// so that we have the latest state of the resource on the cluster and we will avoid
-			// raise the issue "the object has been modified, please apply
-			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, wireguard); err != nil {
-				log.Error(err, "Failed to re-fetch wireguard")
-				return ctrl.Result{}, err
-			}
-
-			condition = metav1.Condition{
-				Type:    typeDegradedWireguard,
-				Status:  metav1.ConditionTrue,
-				Reason:  "Finalizing",
-				Message: fmt.Sprintf("Finalizer operations for custom resource %s name were successfully accomplished", wireguard.Name),
-			}
-			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
-
-			if err := r.Status().Update(ctx, wireguard); err != nil {
-				log.Error(err, "Failed to update Wireguard status")
-				return ctrl.Result{}, err
-			}
-
-			log.Info("Removing Finalizer for Wireguard after successfully perform the operations")
-			if ok := controllerutil.RemoveFinalizer(wireguard, wireguardFinalizer); !ok {
-				log.Error(err, "Failed to remove finalizer for Wireguard")
-				return ctrl.Result{Requeue: true}, nil
-			}
-
-			if err := r.Update(ctx, wireguard); err != nil {
-				log.Error(err, "Failed to remove finalizer for Wireguard")
-				return ctrl.Result{}, err
-			}
-		}
-		return ctrl.Result{}, nil
 	}
 
 	key := types.NamespacedName{
@@ -339,9 +252,12 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 
 			// The following implementation will update the status
-			meta.SetStatusCondition(&wireguard.Status.Conditions, metav1.Condition{Type: typeAvailableWireguard,
+			cdnt := metav1.Condition{
+				Type:   typeAvailableWireguard,
 				Status: metav1.ConditionFalse, Reason: "Resizing",
-				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", wireguard.Name, err)})
+				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", wireguard.Name, err),
+			}
+			meta.SetStatusCondition(&wireguard.Status.Conditions, cdnt)
 
 			if err := r.Status().Update(ctx, wireguard); err != nil {
 				log.Error(err, "Failed to update Wireguard status")
@@ -366,33 +282,12 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Message: msg,
 	}
 	meta.SetStatusCondition(&wireguard.Status.Conditions, cdnt)
-
 	if err := r.Status().Update(ctx, wireguard); err != nil {
 		log.Error(err, "Failed to update Wireguard status")
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// finalizeWireguard will perform the required operations before delete the CR.
-func (r *WireguardReconciler) doFinalizerOperationsForWireguard(cr *vpnv1alpha1.Wireguard) {
-	// TODO(user): Add the cleanup steps that the operator
-	// needs to do before the CR can be deleted. Examples
-	// of finalizers include performing backups and deleting
-	// resources that are not owned by this CR, like a PVC.
-
-	// Note: It is not recommended to use finalizers with the purpose of delete resources which are
-	// created and managed in the reconciliation. These ones, such as the Deployment created on this reconcile,
-	// are defined as depended of the custom resource. See that we use the method ctrl.SetControllerReference.
-	// to set the ownerRef which means that the Deployment will be deleted by the Kubernetes API.
-	// More info: https://kubernetes.io/docs/tasks/administer-cluster/use-cascading-deletion/
-
-	// The following implementation will raise an event
-	r.Recorder.Event(cr, "Warning", "Deleting",
-		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
-			cr.Name,
-			cr.Namespace))
 }
 
 func (r *WireguardReconciler) getService(
@@ -751,7 +646,6 @@ func (r *WireguardReconciler) getDeployment(
 		},
 		Volumes: volumes,
 	}
-	// FIXME: spec is always default
 	if wireguard.Spec.ExternalDNS.Enabled {
 		podSpec.DNSPolicy = corev1.DNSNone
 		podSpec.DNSConfig = &corev1.PodDNSConfig{
@@ -809,7 +703,6 @@ func getVolumes(wireguard *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMou
 			MountPath: "/config",
 		}},
 	}
-	// FIXME: spec is always default
 	if wireguard.Spec.ExternalDNS.Enabled {
 		volumes = append(volumes, corev1.Volume{
 			Name: "unbound-config",

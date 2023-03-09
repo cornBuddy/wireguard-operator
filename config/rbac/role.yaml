@@ -59,12 +59,6 @@ rules:
 - apiGroups:
   - vpn.ahova.com
   resources:
-  - wireguards/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - vpn.ahova.com
-  resources:
   - wireguards/status
   verbs:
   - get

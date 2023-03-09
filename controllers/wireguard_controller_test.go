@@ -24,7 +24,7 @@ const (
 var _ = Describe("Wireguard controller", func() {
 	cases := []testCase{{
 		context: "default configuration",
-		wireguard: vpnv1alpha1.Wireguard{
+		wireguard: &vpnv1alpha1.Wireguard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "wireguard-default",
 				Namespace: corev1.NamespaceDefault,
@@ -33,7 +33,7 @@ var _ = Describe("Wireguard controller", func() {
 		},
 	}, {
 		context: "internal DNS configuration",
-		wireguard: vpnv1alpha1.Wireguard{
+		wireguard: &vpnv1alpha1.Wireguard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "wireguard-internal-dns",
 				Namespace: corev1.NamespaceDefault,
@@ -55,7 +55,7 @@ var _ = Describe("Wireguard controller", func() {
 
 type testCase struct {
 	context   string
-	wireguard vpnv1alpha1.Wireguard
+	wireguard *vpnv1alpha1.Wireguard
 }
 
 // Performs full reconcildation loop for wireguard
@@ -78,7 +78,7 @@ func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
 }
 
 // Validates Wireguard resource and all dependent resources
-func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
+func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
 	return func() {
 		By("Setting prerequisites")
 		key := types.NamespacedName{
@@ -88,7 +88,7 @@ func testReconcile(wireguard vpnv1alpha1.Wireguard) func() {
 		ctx := context.Background()
 
 		By("Creating the custom resource for the Kind Wireguard")
-		Expect(k8sClient.Create(ctx, &wireguard)).To(Succeed())
+		Expect(k8sClient.Create(ctx, wireguard)).To(Succeed())
 
 		By("Checking if the custom resource was successfully created")
 		Eventually(func() error {

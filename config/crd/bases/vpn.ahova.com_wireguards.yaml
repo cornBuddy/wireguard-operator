@@ -46,7 +46,10 @@ spec:
                 description: Public address to the peer created
                 type: string
               externalDns:
-                description: Provides configuration of the unbound sidecar
+                default:
+                  enabled: true
+                  image: docker.io/klutchell/unbound:v1.17.1
+                description: Provides configuration of the dns sidecar
                 properties:
                   enabled:
                     default: true
@@ -63,9 +66,7 @@ spec:
                 type: string
               replicas:
                 default: 1
-                description: 'Replicas defines the number of Wireguard instances The
-                  following markers will use OpenAPI v3 schema to validate the value
-                  More info: https://book.kubebuilder.io/reference/markers/crd-validation.html'
+                description: Replicas defines the number of Wireguard instances
                 format: int32
                 maximum: 3
                 minimum: 1

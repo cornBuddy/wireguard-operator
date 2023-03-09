@@ -4,48 +4,47 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ExternalDNS struct {
-	// Indicates whether to enable external dns
-	// +kubebuilder:default=true
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Image defines the image of the unbound container
-	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Image string `json:"image,omitempty"`
-}
-
 // WireguardSpec defines the desired state of Wireguard
 type WireguardSpec struct {
-	// Replicas defines the number of Wireguard instances
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=3
 	// +kubebuilder:validation:ExclusiveMaximum=false
 	// +kubebuilder:default=1
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+
+	// Replicas defines the number of Wireguard instances
 	Replicas int32 `json:"replicas,omitempty"`
 
-	// Port defines the port that will be used to init the container with the image
 	// +kubebuilder:default=51820
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+
+	// Port defines the port that will be used to init the container with the image
 	ContainerPort int32 `json:"containerPort,omitempty"`
 
-	// Address space to use
 	// +kubebuilder:default="192.168.254.253/30"
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+
+	// Address space to use
 	Address string `json:"network,omitempty"`
 
-	// Provides configuration of the unbound sidecar
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +kubebuilder:default={enabled: true, image: "docker.io/klutchell/unbound:v1.17.1"}
+
+	// Provides configuration of the dns sidecar
 	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
 
-	// Public address to the peer created
 	// +kubebuilder:default="localhost"
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
+
+	// Public address to the peer created
 	EndpointAddress string `json:"endpointAddress,omitempty"`
+}
+
+type ExternalDNS struct {
+	// +kubebuilder:default=true
+
+	// Indicates whether to enable external dns
+	Enabled bool `json:"enabled,omitempty"`
+
+	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
+
+	// Image defines the image of the unbound container
+	Image string `json:"image,omitempty"`
 }
 
 // WireguardStatus defines the observed state of Wireguard
