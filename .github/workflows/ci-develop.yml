@@ -24,6 +24,11 @@ jobs:
         run: pip install editorconfig-checker
       - name: Lint commit
         uses: wagoid/commitlint-github-action@v4
+      - name: Prepare golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: 'stable'
+          check-latest: true
       - name: Run pre-commit git hooks
         uses: pre-commit/action@v3.0.0
   test:
@@ -37,8 +42,6 @@ jobs:
         with:
           go-version: 'stable'
           check-latest: true
-      - run: make vet
-      - run: make build
       - run: make test
   build:
     name: Build
