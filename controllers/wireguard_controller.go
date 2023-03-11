@@ -643,6 +643,7 @@ func (r *WireguardReconciler) getDeployment(
 	}
 
 	podSpec := &corev1.PodSpec{
+		Affinity: wireguard.Spec.Affinity,
 		SecurityContext: &corev1.PodSecurityContext{
 			Sysctls: []corev1.Sysctl{{
 				Name:  "net.ipv4.ip_forward",

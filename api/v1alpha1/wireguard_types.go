@@ -15,6 +15,9 @@ type WireguardSpec struct {
 	// Replicas defines the number of Wireguard instances
 	Replicas int32 `json:"replicas,omitempty"`
 
+	// Affinity configuration
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
 	// +kubebuilder:default=51820
 
 	// Port defines the port that will be used to init the container with the image
