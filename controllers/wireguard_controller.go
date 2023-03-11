@@ -474,12 +474,13 @@ func (r *WireguardReconciler) getSecret(
 	dns := getFirstIpInSubnet(wireguard.Spec.Address)
 	specs := map[string]any{
 		"wg-server": serverSpec{
-			Address:       wireguard.Spec.Address,
-			PrivateKey:    server.String(),
-			ListenPort:    wireguard.Spec.ContainerPort,
-			PeerPublicKey: peer.PublicKey().String(),
-			PeerAddress:   peerAddress,
-			PeerEndpoint:  peerEndpoint,
+			Address:           wireguard.Spec.Address,
+			PrivateKey:        server.String(),
+			ListenPort:        wireguard.Spec.ContainerPort,
+			PeerPublicKey:     peer.PublicKey().String(),
+			PeerAddress:       peerAddress,
+			PeerEndpoint:      peerEndpoint,
+			DropConnectionsTo: wireguard.Spec.DropConnectionsTo,
 		},
 		"wg-client": clientSpec{
 			Address:         peerAddress,
@@ -521,12 +522,13 @@ func (r *WireguardReconciler) getSecret(
 }
 
 type serverSpec struct {
-	Address       string
-	PrivateKey    string
-	ListenPort    int32
-	PeerPublicKey string
-	PeerAddress   string
-	PeerEndpoint  string
+	Address           string
+	PrivateKey        string
+	ListenPort        int32
+	PeerPublicKey     string
+	PeerAddress       string
+	PeerEndpoint      string
+	DropConnectionsTo []string
 }
 
 type clientSpec struct {
@@ -542,6 +544,9 @@ const serverConfig = `[Interface]
 Address = {{ .Address }}
 PrivateKey = {{ .PrivateKey }}
 ListenPort = {{ .ListenPort }}
+{{- range .DropConnectionsTo }}
+PostUp = iptables --insert FORWARD --source {{ $.PeerAddress }} --destination {{ . }} --jump DROP
+{{- end }}
 PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT
 PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT
 PostUp = iptables --table nat --append POSTROUTING --source {{ .PeerAddress }} --out-interface eth0 --jump MASQUERADE
@@ -775,8 +780,6 @@ type containerMounts struct {
 func toPtr[V any](o V) *V { return &o }
 
 // returns last ip in the subnet. examples:
-// getLastIpInSubnet("192.168.254.253/30") -> "192.168.254.254/32"
-// getLastIpInSubnet("192.168.1.1/24") -> "192.168.1.254/32"
 func getLastIpInSubnet(cidr string) string {
 	// ignore error since cidr should be validated already
 	_, net, _ := iplib.ParseCIDR(cidr)
@@ -785,8 +788,6 @@ func getLastIpInSubnet(cidr string) string {
 }
 
 // returns first ip in the subnet. examples:
-// getLastIpInSubnet("192.168.254.253/30") -> "192.168.254.253/32"
-// getLastIpInSubnet("192.168.1.1/24") -> "192.168.1.1/32"
 func getFirstIpInSubnet(cidr string) string {
 	// ignore error since cidr should be validated already
 	_, net, _ := iplib.ParseCIDR(cidr)

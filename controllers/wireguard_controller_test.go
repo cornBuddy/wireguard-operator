@@ -158,8 +158,9 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
 				"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
 				masquerade,
 			}
-			cfg := secret.Data["wg-server"]
-			for _, postUp := range mandatoryPostUps {
+			hardeningPostUps := getHardeningPostUps(wireguard)
+			cfg := string(secret.Data["wg-server"])
+			for _, postUp := range append(mandatoryPostUps, hardeningPostUps...) {
 				Expect(cfg).To(ContainSubstring(postUp))
 			}
 			return nil
@@ -262,3 +263,17 @@ var _ = DescribeTable("getFirstIpInSubnet",
 	Entry("smol", "192.168.254.253/30", "192.168.254.253/32"),
 	Entry("chungus", "192.168.1.1/24", "192.168.1.1/32"),
 )
+
+func getHardeningPostUps(wireguard *vpnv1alpha1.Wireguard) []string {
+	var postUps []string
+	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
+	for _, dest := range wireguard.Spec.DropConnectionsTo {
+		postUp := fmt.Sprintf(
+			"PostUp = iptables --insert FORWARD --source %s --destination %s --jump DROP",
+			peerAddress,
+			dest,
+		)
+		postUps = append(postUps, postUp)
+	}
+	return postUps
+}

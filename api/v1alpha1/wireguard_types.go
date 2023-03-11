@@ -36,7 +36,10 @@ type WireguardSpec struct {
 	// Provides configuration of the dns sidecar
 	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
 
-	// +optional
+	// +kubebuilder:default={"192.168.0.0/16","172.16.0.0/12","10.0.0.0/8","169.254.169.254/32"}
+
+	// Do not allow connections from peer to DropConnectionsTo IP addresses
+	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
 
 	// Sidecar containers to run
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`

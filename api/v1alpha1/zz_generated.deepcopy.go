@@ -89,6 +89,11 @@ func (in *WireguardList) DeepCopyObject() runtime.Object {
 func (in *WireguardSpec) DeepCopyInto(out *WireguardSpec) {
 	*out = *in
 	out.ExternalDNS = in.ExternalDNS
+	if in.DropConnectionsTo != nil {
+		in, out := &in.DropConnectionsTo, &out.DropConnectionsTo
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Sidecars != nil {
 		in, out := &in.Sidecars, &out.Sidecars
 		*out = make([]v1.Container, len(*in))
