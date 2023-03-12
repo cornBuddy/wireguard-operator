@@ -42,6 +42,7 @@ jobs:
         with:
           go-version: 'stable'
           check-latest: true
+      - run: make build
       - run: make test
   build:
     name: Build
