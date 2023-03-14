@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +45,7 @@ var _ = Describe("Wireguard controller", func() {
 			},
 		},
 	}
+	peer, _ := wgtypes.GeneratePrivateKey()
 
 	cases := []testCase{{
 		context: "default configuration",
@@ -76,6 +78,17 @@ var _ = Describe("Wireguard controller", func() {
 			},
 			Spec: vpnv1alpha1.WireguardSpec{
 				Sidecars: []corev1.Container{sidecar},
+			},
+		},
+	}, {
+		context: "pre-configured public key",
+		wireguard: &vpnv1alpha1.Wireguard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "wireguard-public-key",
+				Namespace: corev1.NamespaceDefault,
+			},
+			Spec: vpnv1alpha1.WireguardSpec{
+				PeerPublicKey: toPtr(peer.PublicKey().String()),
 			},
 		},
 	}}
@@ -146,7 +159,11 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
 				return err
 			}
 			Expect(secret.Data).To(HaveKey("wg-server"))
-			Expect(secret.Data).To(HaveKey("wg-client"))
+			if wireguard.Spec.PeerPublicKey == nil {
+				Expect(secret.Data).To(HaveKey("wg-client"))
+			} else {
+				Expect(secret.Data).To(Not(HaveKey("wg-client")))
+			}
 
 			peerAddr := getLastIpInSubnet(wireguard.Spec.Address)
 			masquerade := fmt.Sprintf(

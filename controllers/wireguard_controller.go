@@ -460,7 +460,16 @@ func (r *WireguardReconciler) createSecret(
 func (r *WireguardReconciler) getSecret(
 	wireguard *vpnv1alpha1.Wireguard, serviceIp string, server, peer wgtypes.Key) (*corev1.Secret, error) {
 
-	keys := []string{"wg-server", "wg-client"}
+	var keys []string
+	var peerPublicKey string
+	if wireguard.Spec.PeerPublicKey == nil {
+		keys = []string{"wg-server", "wg-client"}
+		peerPublicKey = peer.PublicKey().String()
+	} else {
+		keys = []string{"wg-server"}
+		peerPublicKey = *wireguard.Spec.PeerPublicKey
+	}
+
 	configs := map[string]string{
 		"wg-server": serverConfig,
 		"wg-client": peerConfig,
@@ -477,7 +486,7 @@ func (r *WireguardReconciler) getSecret(
 			Address:           wireguard.Spec.Address,
 			PrivateKey:        server.String(),
 			ListenPort:        wireguard.Spec.ContainerPort,
-			PeerPublicKey:     peer.PublicKey().String(),
+			PeerPublicKey:     peerPublicKey,
 			PeerAddress:       peerAddress,
 			PeerEndpoint:      peerEndpoint,
 			DropConnectionsTo: wireguard.Spec.DropConnectionsTo,

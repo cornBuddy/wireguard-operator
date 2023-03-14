@@ -93,6 +93,11 @@ func (in *WireguardSpec) DeepCopyInto(out *WireguardSpec) {
 		*out = new(v1.Affinity)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.PeerPublicKey != nil {
+		in, out := &in.PeerPublicKey, &out.PeerPublicKey
+		*out = new(string)
+		**out = **in
+	}
 	out.ExternalDNS = in.ExternalDNS
 	if in.DropConnectionsTo != nil {
 		in, out := &in.DropConnectionsTo, &out.DropConnectionsTo

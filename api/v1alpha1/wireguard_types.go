@@ -18,6 +18,11 @@ type WireguardSpec struct {
 	// Affinity configuration
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
 
+	// Public key of the peer. If the field is provided, it is assumed that
+	// client peer is already configured, so no client config will be
+	// defined in corresponding secret
+	PeerPublicKey *string `json:"peerPublicKey,omitempty"`
+
 	// +kubebuilder:default=51820
 
 	// Port defines the port that will be used to init the container with the image

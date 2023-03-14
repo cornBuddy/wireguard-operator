@@ -903,6 +903,11 @@ spec:
                 default: 192.168.254.253/30
                 description: Address space to use
                 type: string
+              peerPublicKey:
+                description: Public key of the peer. If the field is provided, it
+                  is assumed that client peer is already configured, so no client
+                  config will be defined in corresponding secret
+                type: string
               replicas:
                 default: 1
                 description: Replicas defines the number of Wireguard instances
