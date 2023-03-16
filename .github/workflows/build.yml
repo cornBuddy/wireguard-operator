@@ -1,0 +1,38 @@
+---
+name: Build artifacts
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      IMAGE: "478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ github.event.repository.name }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Read tag value
+        id: get-tag
+        run: |
+          tag=$(echo $GITHUB_REF | cut -d'/' -f3)
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_REF: "${{ github.ref }}"
+      - name: Populate image cache
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: "ci-${{ github.event.repository.name }}"
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Prepare buildx
+        uses: docker/setup-buildx-action@v2
+      - run: make docker-buildx
+        env:
+          IMG: "${{ env.IMAGE }}:${{ steps.get-tag.outputs.tag }}"
