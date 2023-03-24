@@ -72,9 +72,6 @@ spec:
         - --leader-elect
         image: controller:latest
         name: manager
-        env:
-        - name: WIREGUARD_IMAGE
-          value: linuxserver/wireguard:1.0.20210914
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

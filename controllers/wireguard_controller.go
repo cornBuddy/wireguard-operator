@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"text/template"
 
@@ -759,14 +758,9 @@ func getLabels(name string) map[string]string {
 	}
 }
 
-// getWireguardImage gets the Operand image which is managed by this controller
-// from the WIREGUARD_IMAGE environment variable defined in the config/manager/manager.yaml
+// getWireguardImage returns image for wireguard container
 func getWireguardImage() string {
-	image, found := os.LookupEnv("WIREGUARD_IMAGE")
-	if !found {
-		return "linuxserver/wireguard:1.0.20210914"
-	}
-	return image
+	return "linuxserver/wireguard:1.0.20210914"
 }
 
 // SetupWithManager sets up the controller with the Manager.
