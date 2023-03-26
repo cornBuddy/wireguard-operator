@@ -479,6 +479,7 @@ func (r *WireguardReconciler) getSecret(
 	peerEndpoint := fmt.Sprintf("%s:%d", serviceIp, port)
 	ep := wireguard.Spec.EndpointAddress
 	serverEndpoint := fmt.Sprintf("%s:%d", ep, port)
+	// FIXME: allow to use internal k8s dns
 	dns := getFirstIpInSubnet(wireguard.Spec.Address)
 	specs := map[string]any{
 		"wg-server": serverSpec{
