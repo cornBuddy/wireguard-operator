@@ -45,59 +45,61 @@ var _ = Describe("Wireguard controller", func() {
 			},
 		},
 	}
-	peer, _ := wgtypes.GeneratePrivateKey()
+	key, _ := wgtypes.GeneratePrivateKey()
 
-	cases := []testCase{{
-		context: "default configuration",
-		wireguard: &vpnv1alpha1.Wireguard{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wireguard-default",
-				Namespace: corev1.NamespaceDefault,
-			},
-			Spec: vpnv1alpha1.WireguardSpec{},
+	DescribeTable("should reconcile successfully",
+		func(wireguard *vpnv1alpha1.Wireguard) {
+			testReconcile(wireguard)
 		},
-	}, {
-		context: "internal DNS configuration",
-		wireguard: &vpnv1alpha1.Wireguard{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wireguard-internal-dns",
-				Namespace: corev1.NamespaceDefault,
+		Entry(
+			"default configuration",
+			&vpnv1alpha1.Wireguard{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wireguard-default",
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: vpnv1alpha1.WireguardSpec{},
 			},
-			Spec: vpnv1alpha1.WireguardSpec{
-				ExternalDNS: vpnv1alpha1.ExternalDNS{
-					Enabled: false,
+		),
+		Entry(
+			"internal DNS configuration",
+			&vpnv1alpha1.Wireguard{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wireguard-internal-dns",
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: vpnv1alpha1.WireguardSpec{
+					ExternalDNS: vpnv1alpha1.ExternalDNS{
+						Enabled: false,
+					},
 				},
 			},
-		},
-	}, {
-		context: "configuration with sidecars",
-		wireguard: &vpnv1alpha1.Wireguard{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wireguard-sidecars",
-				Namespace: corev1.NamespaceDefault,
+		),
+		Entry(
+			"configuration with sidecars",
+			&vpnv1alpha1.Wireguard{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wireguard-sidecars",
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: vpnv1alpha1.WireguardSpec{
+					Sidecars: []corev1.Container{sidecar},
+				},
 			},
-			Spec: vpnv1alpha1.WireguardSpec{
-				Sidecars: []corev1.Container{sidecar},
+		),
+		Entry(
+			"pre-configured public key",
+			&vpnv1alpha1.Wireguard{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wireguard-public-key",
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: vpnv1alpha1.WireguardSpec{
+					PeerPublicKey: toPtr(key.PublicKey().String()),
+				},
 			},
-		},
-	}, {
-		context: "pre-configured public key",
-		wireguard: &vpnv1alpha1.Wireguard{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wireguard-public-key",
-				Namespace: corev1.NamespaceDefault,
-			},
-			Spec: vpnv1alpha1.WireguardSpec{
-				PeerPublicKey: toPtr(peer.PublicKey().String()),
-			},
-		},
-	}}
-
-	for _, spec := range cases {
-		Context(spec.context, func() {
-			It("should reconcile", testReconcile(spec.wireguard))
-		})
-	}
+		),
+	)
 })
 
 type testCase struct {
@@ -125,142 +127,142 @@ func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
 }
 
 // Validates Wireguard resource and all dependent resources
-func testReconcile(wireguard *vpnv1alpha1.Wireguard) func() {
-	return func() {
-		By("Setting prerequisites")
-		key := types.NamespacedName{
-			Name:      wireguard.ObjectMeta.Name,
-			Namespace: wireguard.ObjectMeta.Namespace,
-		}
-		ctx := context.Background()
+func testReconcile(wireguard *vpnv1alpha1.Wireguard) {
+	GinkgoHelper()
 
-		By("Creating the custom resource for the Kind Wireguard")
-		Expect(k8sClient.Create(ctx, wireguard)).To(Succeed())
-
-		By("Checking if the custom resource was successfully created")
-		Eventually(func() error {
-			found := &vpnv1alpha1.Wireguard{}
-			return k8sClient.Get(ctx, key, found)
-		}, timeout, interval).Should(Succeed())
-
-		By("Reconciling the custom resource created")
-		Expect(reconcileWireguard(ctx, key)).To(Succeed())
-
-		By("Checking if ConfigMap was successfully created in the reconciliation")
-		Eventually(func() error {
-			found := &corev1.ConfigMap{}
-			return k8sClient.Get(ctx, key, found)
-		}, timeout, interval).Should(Succeed())
-
-		By("Checking if Secret was successfully created in the reconciliation")
-		Eventually(func() error {
-			secret := &corev1.Secret{}
-			if err := k8sClient.Get(ctx, key, secret); err != nil {
-				return err
-			}
-			Expect(secret.Data).To(HaveKey("wg-server"))
-			if wireguard.Spec.PeerPublicKey == nil {
-				Expect(secret.Data).To(HaveKey("wg-client"))
-			} else {
-				Expect(secret.Data).To(Not(HaveKey("wg-client")))
-			}
-
-			peerAddr := getLastIpInSubnet(wireguard.Spec.Address)
-			masquerade := fmt.Sprintf(
-				"PostUp = iptables --table nat --append POSTROUTING --source %s --out-interface eth0 --jump MASQUERADE",
-				peerAddr,
-			)
-			mandatoryPostUps := []string{
-				"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
-				"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
-				masquerade,
-			}
-			hardeningPostUps := getHardeningPostUps(wireguard)
-			cfg := string(secret.Data["wg-server"])
-			for _, postUp := range append(mandatoryPostUps, hardeningPostUps...) {
-				Expect(cfg).To(ContainSubstring(postUp))
-			}
-			return nil
-		}, timeout, interval).Should(Succeed())
-
-		By("Checking if Deployment was successfully created in the reconciliation")
-		Eventually(func() error {
-			deploy := &appsv1.Deployment{}
-			err := k8sClient.Get(ctx, key, deploy)
-			if err != nil {
-				return err
-			}
-
-			context := &corev1.SecurityContext{
-				Privileged: toPtr(true),
-				Capabilities: &corev1.Capabilities{
-					Add: []corev1.Capability{
-						"NET_ADMIN",
-						"SYS_MODULE",
-					},
-				},
-			}
-			containers := deploy.Spec.Template.Spec.Containers
-			wg := containers[0]
-			Expect(wg.SecurityContext).To(BeEquivalentTo(context))
-
-			gotSysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
-			wantSysctls := []corev1.Sysctl{{
-				Name:  "net.ipv4.ip_forward",
-				Value: "1",
-			}}
-			Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
-
-			dnsConfig := deploy.Spec.Template.Spec.DNSConfig
-			dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
-			volumes := deploy.Spec.Template.Spec.Volumes
-			sidecarsLen := len(wireguard.Spec.Sidecars)
-			if wireguard.Spec.ExternalDNS.Enabled {
-				Expect(len(containers)).To(Equal(2 + sidecarsLen))
-				Expect(len(volumes)).To(Equal(2))
-				want := &corev1.PodDNSConfig{
-					Nameservers: []string{"127.0.0.1"},
-				}
-				Expect(dnsConfig).To(BeEquivalentTo(want))
-				Expect(dnsPolicy).To(Equal(corev1.DNSNone))
-			} else {
-				Expect(len(containers)).To(Equal(1 + sidecarsLen))
-				Expect(len(volumes)).To(Equal(1))
-				want := &corev1.PodDNSConfig{}
-				Expect(dnsConfig).To(BeEquivalentTo(want))
-				Expect(dnsPolicy).To(Equal(corev1.DNSDefault))
-			}
-
-			return nil
-		}, timeout, interval).Should(Succeed())
-
-		By("Checking if Service was successfully created in the reconciliation")
-		Eventually(func() error {
-			found := &corev1.Service{}
-			return k8sClient.Get(ctx, key, found)
-		}, timeout, interval).Should(Succeed())
-
-		By("Checking the latest Status Condition added to the Wireguard instance")
-		Eventually(func() error {
-			conditions := wireguard.Status.Conditions
-			if conditions != nil && len(conditions) != 0 {
-				got := conditions[len(conditions)-1]
-				msg := fmt.Sprintf(
-					"Deployment for custom resource (%s) with %d replicas created successfully",
-					wireguard.Name, wireguard.Spec.Replicas)
-				want := metav1.Condition{
-					Type:    typeAvailableWireguard,
-					Status:  metav1.ConditionTrue,
-					Reason:  "Reconciling",
-					Message: msg,
-				}
-				if got != want {
-					return fmt.Errorf("The latest status condition added to the wireguard instance is not as expected")
-				}
-			}
-			return nil
-		}, timeout, interval).Should(Succeed())
+	By("Setting prerequisites")
+	key := types.NamespacedName{
+		Name:      wireguard.ObjectMeta.Name,
+		Namespace: wireguard.ObjectMeta.Namespace,
 	}
+	ctx := context.Background()
+
+	By("Creating the custom resource for the Kind Wireguard")
+	Expect(k8sClient.Create(ctx, wireguard)).To(Succeed())
+
+	By("Checking if the custom resource was successfully created")
+	Eventually(func() error {
+		found := &vpnv1alpha1.Wireguard{}
+		return k8sClient.Get(ctx, key, found)
+	}, timeout, interval).Should(Succeed())
+
+	By("Reconciling the custom resource created")
+	Expect(reconcileWireguard(ctx, key)).To(Succeed())
+
+	By("Checking if ConfigMap was successfully created in the reconciliation")
+	Eventually(func() error {
+		found := &corev1.ConfigMap{}
+		return k8sClient.Get(ctx, key, found)
+	}, timeout, interval).Should(Succeed())
+
+	By("Checking if Secret was successfully created in the reconciliation")
+	Eventually(func() error {
+		secret := &corev1.Secret{}
+		if err := k8sClient.Get(ctx, key, secret); err != nil {
+			return err
+		}
+		Expect(secret.Data).To(HaveKey("wg-server"))
+		if wireguard.Spec.PeerPublicKey == nil {
+			Expect(secret.Data).To(HaveKey("wg-client"))
+		} else {
+			Expect(secret.Data).To(Not(HaveKey("wg-client")))
+		}
+
+		peerAddr := getLastIpInSubnet(wireguard.Spec.Address)
+		masquerade := fmt.Sprintf(
+			"PostUp = iptables --table nat --append POSTROUTING --source %s --out-interface eth0 --jump MASQUERADE",
+			peerAddr,
+		)
+		mandatoryPostUps := []string{
+			"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
+			"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
+			masquerade,
+		}
+		hardeningPostUps := getHardeningPostUps(wireguard)
+		cfg := string(secret.Data["wg-server"])
+		for _, postUp := range append(mandatoryPostUps, hardeningPostUps...) {
+			Expect(cfg).To(ContainSubstring(postUp))
+		}
+		return nil
+	}, timeout, interval).Should(Succeed())
+
+	By("Checking if Deployment was successfully created in the reconciliation")
+	Eventually(func() error {
+		deploy := &appsv1.Deployment{}
+		err := k8sClient.Get(ctx, key, deploy)
+		if err != nil {
+			return err
+		}
+
+		context := &corev1.SecurityContext{
+			Privileged: toPtr(true),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"NET_ADMIN",
+					"SYS_MODULE",
+				},
+			},
+		}
+		containers := deploy.Spec.Template.Spec.Containers
+		wg := containers[0]
+		Expect(wg.SecurityContext).To(BeEquivalentTo(context))
+
+		gotSysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
+		wantSysctls := []corev1.Sysctl{{
+			Name:  "net.ipv4.ip_forward",
+			Value: "1",
+		}}
+		Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
+
+		dnsConfig := deploy.Spec.Template.Spec.DNSConfig
+		dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
+		volumes := deploy.Spec.Template.Spec.Volumes
+		sidecarsLen := len(wireguard.Spec.Sidecars)
+		if wireguard.Spec.ExternalDNS.Enabled {
+			Expect(len(containers)).To(Equal(2 + sidecarsLen))
+			Expect(len(volumes)).To(Equal(2))
+			want := &corev1.PodDNSConfig{
+				Nameservers: []string{"127.0.0.1"},
+			}
+			Expect(dnsConfig).To(BeEquivalentTo(want))
+			Expect(dnsPolicy).To(Equal(corev1.DNSNone))
+		} else {
+			Expect(len(containers)).To(Equal(1 + sidecarsLen))
+			Expect(len(volumes)).To(Equal(1))
+			want := &corev1.PodDNSConfig{}
+			Expect(dnsConfig).To(BeEquivalentTo(want))
+			Expect(dnsPolicy).To(Equal(corev1.DNSDefault))
+		}
+
+		return nil
+	}, timeout, interval).Should(Succeed())
+
+	By("Checking if Service was successfully created in the reconciliation")
+	Eventually(func() error {
+		found := &corev1.Service{}
+		return k8sClient.Get(ctx, key, found)
+	}, timeout, interval).Should(Succeed())
+
+	By("Checking the latest Status Condition added to the Wireguard instance")
+	Eventually(func() error {
+		conditions := wireguard.Status.Conditions
+		if conditions != nil && len(conditions) != 0 {
+			got := conditions[len(conditions)-1]
+			msg := fmt.Sprintf(
+				"Deployment for custom resource (%s) with %d replicas created successfully",
+				wireguard.Name, wireguard.Spec.Replicas)
+			want := metav1.Condition{
+				Type:    typeAvailableWireguard,
+				Status:  metav1.ConditionTrue,
+				Reason:  "Reconciling",
+				Message: msg,
+			}
+			if got != want {
+				return fmt.Errorf("The latest status condition added to the wireguard instance is not as expected")
+			}
+		}
+		return nil
+	}, timeout, interval).Should(Succeed())
 }
 
 var _ = DescribeTable("getLastIpInSubnet",
