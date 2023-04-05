@@ -253,7 +253,7 @@ func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
 
 // Performs full reconcildation loop for wireguard
 func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
-	reconciler := &WireguardReconciler{
+	reconciler := &WireguardPeerReconciler{
 		Client: k8sClient,
 		Scheme: k8sClient.Scheme(),
 	}

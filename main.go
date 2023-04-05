@@ -73,7 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.WireguardReconciler{
+	if err = (&controllers.WireguardPeerReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("wireguard-controller"),

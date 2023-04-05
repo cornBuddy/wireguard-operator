@@ -31,8 +31,8 @@ const (
 	typeAvailableWireguard = "Available"
 )
 
-// WireguardReconciler reconciles a Wireguard object
-type WireguardReconciler struct {
+// WireguardPeerReconciler reconciles a Wireguard object
+type WireguardPeerReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
@@ -60,7 +60,7 @@ type WireguardReconciler struct {
 // - About Operator Pattern: https://kubernetes.io/docs/concepts/extend-kubernetes/operator/
 // - About Controllers: https://kubernetes.io/docs/concepts/architecture/controller/
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
 	// Fetch the Wireguard instance
@@ -289,7 +289,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *WireguardReconciler) getService(
+func (r *WireguardPeerReconciler) getService(
 	wireguard *vpnv1alpha1.WireguardPeer) (*corev1.Service, error) {
 	ls := getLabels(wireguard.Name)
 
@@ -314,7 +314,7 @@ func (r *WireguardReconciler) getService(
 	return service, nil
 }
 
-func (r *WireguardReconciler) createService(
+func (r *WireguardPeerReconciler) createService(
 	wireguard *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
 
 	service, err := r.getService(wireguard)
@@ -338,7 +338,7 @@ func (r *WireguardReconciler) createService(
 	return nil
 }
 
-func (r *WireguardReconciler) createConfigMap(
+func (r *WireguardPeerReconciler) createConfigMap(
 	wireguard *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
 
 	cm, err := r.getConfigMap(wireguard)
@@ -363,7 +363,7 @@ func (r *WireguardReconciler) createConfigMap(
 }
 
 // getConfigMap returns a Wireguard ConfigMap object
-func (r *WireguardReconciler) getConfigMap(
+func (r *WireguardPeerReconciler) getConfigMap(
 	wireguard *vpnv1alpha1.WireguardPeer) (*corev1.ConfigMap, error) {
 
 	unboundTemplate, err := template.New("unbound").Parse(unboundConfTmpl)
@@ -421,7 +421,7 @@ server:
 	prefetch: yes
 	prefetch-key: yes`
 
-func (r *WireguardReconciler) createSecret(
+func (r *WireguardPeerReconciler) createSecret(
 	wireguard *vpnv1alpha1.WireguardPeer, serviceIp string, ctx context.Context) error {
 
 	server, err := wgtypes.GeneratePrivateKey()
@@ -456,7 +456,7 @@ func (r *WireguardReconciler) createSecret(
 	return nil
 }
 
-func (r *WireguardReconciler) getSecret(
+func (r *WireguardPeerReconciler) getSecret(
 	wireguard *vpnv1alpha1.WireguardPeer, serviceIp string, server, peer wgtypes.Key) (*corev1.Secret, error) {
 
 	var keys []string
@@ -577,7 +577,7 @@ AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = {{ .ServerEndpoint }}`
 
 // getDeployment returns a Wireguard Deployment object
-func (r *WireguardReconciler) getDeployment(
+func (r *WireguardPeerReconciler) getDeployment(
 	wireguard *vpnv1alpha1.WireguardPeer) (*appsv1.Deployment, error) {
 
 	volumes, mounts := getVolumes(wireguard)
@@ -767,7 +767,7 @@ func getWireguardImage() string {
 // SetupWithManager sets up the controller with the Manager.
 // Note that the Deployment will be also watched in order to ensure its
 // desirable state on the cluster
-func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *WireguardPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&vpnv1alpha1.WireguardPeer{}).
 		Owns(&corev1.ConfigMap{}).
