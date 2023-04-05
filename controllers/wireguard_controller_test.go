@@ -10,6 +10,7 @@ import (
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -46,6 +47,14 @@ var _ = Describe("Wireguard controller", func() {
 		},
 	}
 	key, _ := wgtypes.GeneratePrivateKey()
+
+	AfterEach(func() {
+		By("deleting Wireguard resources")
+		wireguard := vpnv1alpha1.Wireguard{}
+		err := k8sClient.DeleteAllOf(context.TODO(), &wireguard)
+		deletedOrNotFound := err == nil || apierrors.IsNotFound(err)
+		Expect(deletedOrNotFound).To(BeTrue())
+	})
 
 	DescribeTable("should reconcile successfully",
 		func(wireguard *vpnv1alpha1.Wireguard) {
@@ -101,11 +110,6 @@ var _ = Describe("Wireguard controller", func() {
 		),
 	)
 })
-
-type testCase struct {
-	context   string
-	wireguard *vpnv1alpha1.Wireguard
-}
 
 // Performs full reconcildation loop for wireguard
 func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
