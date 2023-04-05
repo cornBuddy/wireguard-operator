@@ -50,34 +50,34 @@ var _ = Describe("Wireguard controller", func() {
 
 	AfterEach(func() {
 		By("deleting Wireguard resources")
-		wireguard := vpnv1alpha1.Wireguard{}
+		wireguard := vpnv1alpha1.WireguardPeer{}
 		err := k8sClient.DeleteAllOf(context.TODO(), &wireguard)
 		deletedOrNotFound := err == nil || apierrors.IsNotFound(err)
 		Expect(deletedOrNotFound).To(BeTrue())
 	})
 
 	DescribeTable("should reconcile successfully",
-		func(wireguard *vpnv1alpha1.Wireguard) {
+		func(wireguard *vpnv1alpha1.WireguardPeer) {
 			testReconcile(wireguard)
 		},
 		Entry(
 			"default configuration",
-			&vpnv1alpha1.Wireguard{
+			&vpnv1alpha1.WireguardPeer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wireguard-default",
 					Namespace: corev1.NamespaceDefault,
 				},
-				Spec: vpnv1alpha1.WireguardSpec{},
+				Spec: vpnv1alpha1.WireguardPeerSpec{},
 			},
 		),
 		Entry(
 			"internal DNS configuration",
-			&vpnv1alpha1.Wireguard{
+			&vpnv1alpha1.WireguardPeer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wireguard-internal-dns",
 					Namespace: corev1.NamespaceDefault,
 				},
-				Spec: vpnv1alpha1.WireguardSpec{
+				Spec: vpnv1alpha1.WireguardPeerSpec{
 					ExternalDNS: vpnv1alpha1.ExternalDNS{
 						Enabled: false,
 					},
@@ -86,24 +86,24 @@ var _ = Describe("Wireguard controller", func() {
 		),
 		Entry(
 			"configuration with sidecars",
-			&vpnv1alpha1.Wireguard{
+			&vpnv1alpha1.WireguardPeer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wireguard-sidecars",
 					Namespace: corev1.NamespaceDefault,
 				},
-				Spec: vpnv1alpha1.WireguardSpec{
+				Spec: vpnv1alpha1.WireguardPeerSpec{
 					Sidecars: []corev1.Container{sidecar},
 				},
 			},
 		),
 		Entry(
 			"pre-configured public key",
-			&vpnv1alpha1.Wireguard{
+			&vpnv1alpha1.WireguardPeer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wireguard-public-key",
 					Namespace: corev1.NamespaceDefault,
 				},
-				Spec: vpnv1alpha1.WireguardSpec{
+				Spec: vpnv1alpha1.WireguardPeerSpec{
 					PeerPublicKey: toPtr(key.PublicKey().String()),
 				},
 			},
@@ -111,27 +111,8 @@ var _ = Describe("Wireguard controller", func() {
 	)
 })
 
-// Performs full reconcildation loop for wireguard
-func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
-	reconciler := &WireguardReconciler{
-		Client: k8sClient,
-		Scheme: k8sClient.Scheme(),
-	}
-	// Reconcile resource multiple times to ensure that all resources are
-	// created
-	for i := 0; i < 5; i++ {
-		req := reconcile.Request{
-			NamespacedName: key,
-		}
-		if _, err := reconciler.Reconcile(ctx, req); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Validates Wireguard resource and all dependent resources
-func testReconcile(wireguard *vpnv1alpha1.Wireguard) {
+func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
 	GinkgoHelper()
 
 	By("Setting prerequisites")
@@ -146,7 +127,7 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) {
 
 	By("Checking if the custom resource was successfully created")
 	Eventually(func() error {
-		found := &vpnv1alpha1.Wireguard{}
+		found := &vpnv1alpha1.WireguardPeer{}
 		return k8sClient.Get(ctx, key, found)
 	}, timeout, interval).Should(Succeed())
 
@@ -250,7 +231,8 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) {
 	By("Checking the latest Status Condition added to the Wireguard instance")
 	Eventually(func() error {
 		conditions := wireguard.Status.Conditions
-		if conditions != nil && len(conditions) != 0 {
+		conditionsNotEmpty := conditions != nil && len(conditions) != 0
+		if conditionsNotEmpty {
 			got := conditions[len(conditions)-1]
 			msg := fmt.Sprintf(
 				"Deployment for custom resource (%s) with %d replicas created successfully",
@@ -267,6 +249,39 @@ func testReconcile(wireguard *vpnv1alpha1.Wireguard) {
 		}
 		return nil
 	}, timeout, interval).Should(Succeed())
+}
+
+// Performs full reconcildation loop for wireguard
+func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
+	reconciler := &WireguardReconciler{
+		Client: k8sClient,
+		Scheme: k8sClient.Scheme(),
+	}
+	// Reconcile resource multiple times to ensure that all resources are
+	// created
+	for i := 0; i < 5; i++ {
+		req := reconcile.Request{
+			NamespacedName: key,
+		}
+		if _, err := reconciler.Reconcile(ctx, req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getHardeningPostUps(wireguard *vpnv1alpha1.WireguardPeer) []string {
+	var postUps []string
+	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
+	for _, dest := range wireguard.Spec.DropConnectionsTo {
+		postUp := fmt.Sprintf(
+			"PostUp = iptables --insert FORWARD --source %s --destination %s --jump DROP",
+			peerAddress,
+			dest,
+		)
+		postUps = append(postUps, postUp)
+	}
+	return postUps
 }
 
 var _ = DescribeTable("getLastIpInSubnet",
@@ -286,17 +301,3 @@ var _ = DescribeTable("getFirstIpInSubnet",
 	Entry("smol", "192.168.254.253/30", "192.168.254.253/32"),
 	Entry("chungus", "192.168.1.1/24", "192.168.1.1/32"),
 )
-
-func getHardeningPostUps(wireguard *vpnv1alpha1.Wireguard) []string {
-	var postUps []string
-	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
-	for _, dest := range wireguard.Spec.DropConnectionsTo {
-		postUp := fmt.Sprintf(
-			"PostUp = iptables --insert FORWARD --source %s --destination %s --jump DROP",
-			peerAddress,
-			dest,
-		)
-		postUps = append(postUps, postUp)
-	}
-	return postUps
-}

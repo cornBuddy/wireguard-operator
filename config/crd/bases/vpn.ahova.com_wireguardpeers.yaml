@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: wireguards.vpn.ahova.com
+  name: wireguardpeers.vpn.ahova.com
 spec:
   group: vpn.ahova.com
   names:
-    kind: Wireguard
-    listKind: WireguardList
-    plural: wireguards
-    singular: wireguard
+    kind: WireguardPeer
+    listKind: WireguardPeerList
+    plural: wireguardpeers
+    singular: wireguardpeer
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Wireguard is the Schema for the wireguards API
+        description: WireguardPeer is the Schema for the wireguards API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: WireguardSpec defines the desired state of Wireguard
+            description: WireguardPeerSpec defines the desired state of Wireguard
             properties:
               affinity:
                 description: Affinity configuration
@@ -2162,7 +2162,7 @@ spec:
                 type: array
             type: object
           status:
-            description: WireguardStatus defines the observed state of Wireguard
+            description: WireguardPeerStatus defines the observed state of Wireguard
             properties:
               conditions:
                 description: 'Represents the observations of a Wireguard''s current

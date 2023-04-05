@@ -5,8 +5,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// WireguardSpec defines the desired state of Wireguard
-type WireguardSpec struct {
+// WireguardPeerSpec defines the desired state of Wireguard
+type WireguardPeerSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=3
 	// +kubebuilder:validation:ExclusiveMaximum=false
@@ -65,8 +65,8 @@ type ExternalDNS struct {
 	Image string `json:"image,omitempty"`
 }
 
-// WireguardStatus defines the observed state of Wireguard
-type WireguardStatus struct {
+// WireguardPeerStatus defines the observed state of Wireguard
+type WireguardPeerStatus struct {
 	// Represents the observations of a Wireguard's current state.
 	// Wireguard.status.conditions.type are: "Available", "Progressing", and
 	// "Degraded"
@@ -85,13 +85,13 @@ type WireguardStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Wireguard is the Schema for the wireguards API
-type Wireguard struct {
+// WireguardPeer is the Schema for the wireguards API
+type WireguardPeer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   WireguardSpec   `json:"spec,omitempty"`
-	Status WireguardStatus `json:"status,omitempty"`
+	Spec   WireguardPeerSpec   `json:"spec,omitempty"`
+	Status WireguardPeerStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -100,9 +100,9 @@ type Wireguard struct {
 type WireguardList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Wireguard `json:"items"`
+	Items           []WireguardPeer `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Wireguard{}, &WireguardList{})
+	SchemeBuilder.Register(&WireguardPeer{}, &WireguardList{})
 }

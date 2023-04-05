@@ -42,8 +42,8 @@ type WireguardReconciler struct {
 // when the command <make manifests> is executed.
 // To know more about markers see: https://book.kubebuilder.io/reference/markers.html
 
-//+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguardpeers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguardpeers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
@@ -66,7 +66,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the Wireguard instance
 	// The purpose is check if the Custom Resource for the Kind Wireguard
 	// is applied on the cluster if not we return nil to stop the reconciliation
-	wireguard := &vpnv1alpha1.Wireguard{}
+	wireguard := &vpnv1alpha1.WireguardPeer{}
 	err := r.Get(ctx, req.NamespacedName, wireguard)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -290,7 +290,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *WireguardReconciler) getService(
-	wireguard *vpnv1alpha1.Wireguard) (*corev1.Service, error) {
+	wireguard *vpnv1alpha1.WireguardPeer) (*corev1.Service, error) {
 	ls := getLabels(wireguard.Name)
 
 	service := &corev1.Service{
@@ -315,7 +315,7 @@ func (r *WireguardReconciler) getService(
 }
 
 func (r *WireguardReconciler) createService(
-	wireguard *vpnv1alpha1.Wireguard, ctx context.Context) error {
+	wireguard *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
 
 	service, err := r.getService(wireguard)
 	if err != nil {
@@ -339,7 +339,7 @@ func (r *WireguardReconciler) createService(
 }
 
 func (r *WireguardReconciler) createConfigMap(
-	wireguard *vpnv1alpha1.Wireguard, ctx context.Context) error {
+	wireguard *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
 
 	cm, err := r.getConfigMap(wireguard)
 	if err != nil {
@@ -364,7 +364,7 @@ func (r *WireguardReconciler) createConfigMap(
 
 // getConfigMap returns a Wireguard ConfigMap object
 func (r *WireguardReconciler) getConfigMap(
-	wireguard *vpnv1alpha1.Wireguard) (*corev1.ConfigMap, error) {
+	wireguard *vpnv1alpha1.WireguardPeer) (*corev1.ConfigMap, error) {
 
 	unboundTemplate, err := template.New("unbound").Parse(unboundConfTmpl)
 	if err != nil {
@@ -422,7 +422,7 @@ server:
 	prefetch-key: yes`
 
 func (r *WireguardReconciler) createSecret(
-	wireguard *vpnv1alpha1.Wireguard, serviceIp string, ctx context.Context) error {
+	wireguard *vpnv1alpha1.WireguardPeer, serviceIp string, ctx context.Context) error {
 
 	server, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
@@ -457,7 +457,7 @@ func (r *WireguardReconciler) createSecret(
 }
 
 func (r *WireguardReconciler) getSecret(
-	wireguard *vpnv1alpha1.Wireguard, serviceIp string, server, peer wgtypes.Key) (*corev1.Secret, error) {
+	wireguard *vpnv1alpha1.WireguardPeer, serviceIp string, server, peer wgtypes.Key) (*corev1.Secret, error) {
 
 	var keys []string
 	var peerPublicKey string
@@ -578,7 +578,7 @@ Endpoint = {{ .ServerEndpoint }}`
 
 // getDeployment returns a Wireguard Deployment object
 func (r *WireguardReconciler) getDeployment(
-	wireguard *vpnv1alpha1.Wireguard) (*appsv1.Deployment, error) {
+	wireguard *vpnv1alpha1.WireguardPeer) (*appsv1.Deployment, error) {
 
 	volumes, mounts := getVolumes(wireguard)
 
@@ -701,7 +701,7 @@ func (r *WireguardReconciler) getDeployment(
 	return dep, nil
 }
 
-func getVolumes(wireguard *vpnv1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
+func getVolumes(wireguard *vpnv1alpha1.WireguardPeer) ([]corev1.Volume, containerMounts) {
 	volumes := []corev1.Volume{{
 		Name: "wireguard-config",
 		VolumeSource: corev1.VolumeSource{
@@ -769,7 +769,7 @@ func getWireguardImage() string {
 // desirable state on the cluster
 func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&vpnv1alpha1.Wireguard{}).
+		For(&vpnv1alpha1.WireguardPeer{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).

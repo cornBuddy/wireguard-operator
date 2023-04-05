@@ -47,7 +47,7 @@ rules:
 - apiGroups:
   - vpn.ahova.com
   resources:
-  - wireguards
+  - wireguardpeers
   verbs:
   - create
   - delete
@@ -59,7 +59,7 @@ rules:
 - apiGroups:
   - vpn.ahova.com
   resources:
-  - wireguards/status
+  - wireguardpeers/status
   verbs:
   - get
   - patch
