@@ -50,15 +50,15 @@ var _ = Describe("Wireguard controller", func() {
 
 	AfterEach(func() {
 		By("deleting Wireguard resources")
-		wireguard := vpnv1alpha1.WireguardPeer{}
-		err := k8sClient.DeleteAllOf(context.TODO(), &wireguard)
+		peer := vpnv1alpha1.WireguardPeer{}
+		err := k8sClient.DeleteAllOf(context.TODO(), &peer)
 		deletedOrNotFound := err == nil || apierrors.IsNotFound(err)
 		Expect(deletedOrNotFound).To(BeTrue())
 	})
 
 	DescribeTable("should reconcile successfully",
-		func(wireguard *vpnv1alpha1.WireguardPeer) {
-			testReconcile(wireguard)
+		func(peer *vpnv1alpha1.WireguardPeer) {
+			testReconcile(peer)
 		},
 		Entry(
 			"default configuration",
@@ -112,18 +112,18 @@ var _ = Describe("Wireguard controller", func() {
 })
 
 // Validates Wireguard resource and all dependent resources
-func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
+func testReconcile(peer *vpnv1alpha1.WireguardPeer) {
 	GinkgoHelper()
 
 	By("Setting prerequisites")
 	key := types.NamespacedName{
-		Name:      wireguard.ObjectMeta.Name,
-		Namespace: wireguard.ObjectMeta.Namespace,
+		Name:      peer.ObjectMeta.Name,
+		Namespace: peer.ObjectMeta.Namespace,
 	}
 	ctx := context.Background()
 
 	By("Creating the custom resource for the Kind Wireguard")
-	Expect(k8sClient.Create(ctx, wireguard)).To(Succeed())
+	Expect(k8sClient.Create(ctx, peer)).To(Succeed())
 
 	By("Checking if the custom resource was successfully created")
 	Eventually(func() error {
@@ -147,13 +147,13 @@ func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
 			return err
 		}
 		Expect(secret.Data).To(HaveKey("wg-server"))
-		if wireguard.Spec.PeerPublicKey == nil {
+		if peer.Spec.PeerPublicKey == nil {
 			Expect(secret.Data).To(HaveKey("wg-client"))
 		} else {
 			Expect(secret.Data).To(Not(HaveKey("wg-client")))
 		}
 
-		peerAddr := getLastIpInSubnet(wireguard.Spec.Address)
+		peerAddr := getLastIpInSubnet(peer.Spec.Address)
 		masquerade := fmt.Sprintf(
 			"PostUp = iptables --table nat --append POSTROUTING --source %s --out-interface eth0 --jump MASQUERADE",
 			peerAddr,
@@ -163,7 +163,7 @@ func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
 			"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
 			masquerade,
 		}
-		hardeningPostUps := getHardeningPostUps(wireguard)
+		hardeningPostUps := getHardeningPostUps(peer)
 		cfg := string(secret.Data["wg-server"])
 		for _, postUp := range append(mandatoryPostUps, hardeningPostUps...) {
 			Expect(cfg).To(ContainSubstring(postUp))
@@ -202,8 +202,8 @@ func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
 		dnsConfig := deploy.Spec.Template.Spec.DNSConfig
 		dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
 		volumes := deploy.Spec.Template.Spec.Volumes
-		sidecarsLen := len(wireguard.Spec.Sidecars)
-		if wireguard.Spec.ExternalDNS.Enabled {
+		sidecarsLen := len(peer.Spec.Sidecars)
+		if peer.Spec.ExternalDNS.Enabled {
 			Expect(len(containers)).To(Equal(2 + sidecarsLen))
 			Expect(len(volumes)).To(Equal(2))
 			want := &corev1.PodDNSConfig{
@@ -230,13 +230,13 @@ func testReconcile(wireguard *vpnv1alpha1.WireguardPeer) {
 
 	By("Checking the latest Status Condition added to the Wireguard instance")
 	Eventually(func() error {
-		conditions := wireguard.Status.Conditions
+		conditions := peer.Status.Conditions
 		conditionsNotEmpty := conditions != nil && len(conditions) != 0
 		if conditionsNotEmpty {
 			got := conditions[len(conditions)-1]
 			msg := fmt.Sprintf(
 				"Deployment for custom resource (%s) with %d replicas created successfully",
-				wireguard.Name, wireguard.Spec.Replicas)
+				peer.Name, peer.Spec.Replicas)
 			want := metav1.Condition{
 				Type:    typeAvailableWireguard,
 				Status:  metav1.ConditionTrue,
