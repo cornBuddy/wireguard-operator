@@ -461,12 +461,12 @@ func (r *WireguardPeerReconciler) getSecret(
 
 	var keys []string
 	var peerPublicKey string
-	if wireguard.Spec.PeerPublicKey == nil {
+	if wireguard.Spec.PublicKey == nil {
 		keys = []string{"wg-server", "wg-client"}
 		peerPublicKey = peer.PublicKey().String()
 	} else {
 		keys = []string{"wg-server"}
-		peerPublicKey = *wireguard.Spec.PeerPublicKey
+		peerPublicKey = *wireguard.Spec.PublicKey
 	}
 
 	configs := map[string]string{
@@ -477,7 +477,8 @@ func (r *WireguardPeerReconciler) getSecret(
 	// FIXME: do not use container port
 	port := wireguard.Spec.ContainerPort
 	peerEndpoint := fmt.Sprintf("%s:%d", serviceIp, port)
-	ep := wireguard.Spec.EndpointAddress
+	// FIXME: read from corresponding wireguard resource
+	ep := "localhost"
 	serverEndpoint := fmt.Sprintf("%s:%d", ep, port)
 	// FIXME: allow to use internal k8s dns
 	dns := getFirstIpInSubnet(wireguard.Spec.Address)

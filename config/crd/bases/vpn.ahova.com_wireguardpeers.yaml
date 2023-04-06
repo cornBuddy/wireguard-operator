@@ -18,7 +18,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: WireguardPeer is the Schema for the wireguards API
+        description: WireguardPeer is the Schema for the wireguardpeers API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -880,10 +880,6 @@ spec:
                 items:
                   type: string
                 type: array
-              endpointAddress:
-                default: localhost
-                description: Public address to the peer created
-                type: string
               externalDns:
                 default:
                   enabled: true
@@ -2160,6 +2156,10 @@ spec:
                   - name
                   type: object
                 type: array
+              wireguardRef:
+                description: Reference to the wireguard resource
+                minLength: 1
+                type: string
             type: object
           status:
             description: WireguardPeerStatus defines the observed state of Wireguard

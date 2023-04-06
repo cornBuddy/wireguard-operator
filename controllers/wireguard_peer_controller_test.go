@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
@@ -23,7 +24,7 @@ const (
 	interval = 200 * time.Millisecond
 )
 
-var _ = Describe("Wireguard controller", func() {
+var _ = Describe("WireguardPeer controller", func() {
 	sidecar := corev1.Container{
 		Name:  "wireguard-exporter",
 		Image: "docker.io/mindflavor/prometheus-wireguard-exporter:3.6.6",
@@ -48,18 +49,37 @@ var _ = Describe("Wireguard controller", func() {
 	}
 	key, _ := wgtypes.GeneratePrivateKey()
 
+	BeforeEach(func() {
+		By("Creating wireguard CR")
+		wireguard := &vpnv1alpha1.Wireguard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "wireguard",
+				Namespace: corev1.NamespaceDefault,
+			},
+			Spec: vpnv1alpha1.WireguardSpec{},
+		}
+		Expect(createIfNotExists(wireguard)).To(Succeed())
+
+		By("Checking if wireguard CR was successfully created")
+		key := types.NamespacedName{
+			Name:      wireguard.ObjectMeta.Name,
+			Namespace: wireguard.ObjectMeta.Namespace,
+		}
+		Eventually(func() error {
+			return k8sClient.Get(context.TODO(), key, wireguard)
+		}, timeout, interval).Should(Succeed())
+	})
+
 	AfterEach(func() {
-		By("deleting Wireguard resources")
-		peer := vpnv1alpha1.WireguardPeer{}
-		err := k8sClient.DeleteAllOf(context.TODO(), &peer)
+		By("Deleting wireguard peers CR")
+		peer := &vpnv1alpha1.WireguardPeer{}
+		err := k8sClient.DeleteAllOf(context.TODO(), peer)
 		deletedOrNotFound := err == nil || apierrors.IsNotFound(err)
 		Expect(deletedOrNotFound).To(BeTrue())
 	})
 
 	DescribeTable("should reconcile successfully",
-		func(peer *vpnv1alpha1.WireguardPeer) {
-			testReconcile(peer)
-		},
+		testReconcile,
 		Entry(
 			"default configuration",
 			&vpnv1alpha1.WireguardPeer{
@@ -67,7 +87,9 @@ var _ = Describe("Wireguard controller", func() {
 					Name:      "wireguard-default",
 					Namespace: corev1.NamespaceDefault,
 				},
-				Spec: vpnv1alpha1.WireguardPeerSpec{},
+				Spec: vpnv1alpha1.WireguardPeerSpec{
+					WireguardRef: "wireguard",
+				},
 			},
 		),
 		Entry(
@@ -78,6 +100,7 @@ var _ = Describe("Wireguard controller", func() {
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: vpnv1alpha1.WireguardPeerSpec{
+					WireguardRef: "wireguard",
 					ExternalDNS: vpnv1alpha1.ExternalDNS{
 						Enabled: false,
 					},
@@ -92,7 +115,8 @@ var _ = Describe("Wireguard controller", func() {
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: vpnv1alpha1.WireguardPeerSpec{
-					Sidecars: []corev1.Container{sidecar},
+					WireguardRef: "wireguard",
+					Sidecars:     []corev1.Container{sidecar},
 				},
 			},
 		),
@@ -104,7 +128,8 @@ var _ = Describe("Wireguard controller", func() {
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: vpnv1alpha1.WireguardPeerSpec{
-					PeerPublicKey: toPtr(key.PublicKey().String()),
+					WireguardRef: "wireguard",
+					PublicKey:    toPtr(key.PublicKey().String()),
 				},
 			},
 		),
@@ -120,7 +145,7 @@ func testReconcile(peer *vpnv1alpha1.WireguardPeer) {
 		Name:      peer.ObjectMeta.Name,
 		Namespace: peer.ObjectMeta.Namespace,
 	}
-	ctx := context.Background()
+	ctx := context.TODO()
 
 	By("Creating the custom resource for the Kind Wireguard")
 	Expect(k8sClient.Create(ctx, peer)).To(Succeed())
@@ -147,7 +172,7 @@ func testReconcile(peer *vpnv1alpha1.WireguardPeer) {
 			return err
 		}
 		Expect(secret.Data).To(HaveKey("wg-server"))
-		if peer.Spec.PeerPublicKey == nil {
+		if peer.Spec.PublicKey == nil {
 			Expect(secret.Data).To(HaveKey("wg-client"))
 		} else {
 			Expect(secret.Data).To(Not(HaveKey("wg-client")))
@@ -266,6 +291,25 @@ func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
 		if _, err := reconciler.Reconcile(ctx, req); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func createIfNotExists(obj client.Object) error {
+	key := types.NamespacedName{
+		Name:      obj.GetName(),
+		Namespace: obj.GetNamespace(),
+	}
+
+	err := k8sClient.Get(context.TODO(), key, obj)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	} else if err == nil {
+		return nil
+	}
+
+	if err := k8sClient.Create(context.TODO(), obj); err != nil {
+		return err
 	}
 	return nil
 }

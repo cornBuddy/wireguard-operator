@@ -21,7 +21,7 @@ type WireguardPeerSpec struct {
 	// Public key of the peer. If the field is provided, it is assumed that
 	// client peer is already configured, so no client config will be
 	// defined in corresponding secret
-	PeerPublicKey *string `json:"peerPublicKey,omitempty"`
+	PublicKey *string `json:"peerPublicKey,omitempty"`
 
 	// +kubebuilder:default=51820
 
@@ -32,11 +32,6 @@ type WireguardPeerSpec struct {
 
 	// Address space to use
 	Address string `json:"network,omitempty"`
-
-	// +kubebuilder:default="localhost"
-
-	// Public address to the peer created
-	EndpointAddress string `json:"endpointAddress,omitempty"`
 
 	// FIXME: defaults for the struct provided twice
 	// +kubebuilder:default={enabled: true, image: "docker.io/klutchell/unbound:v1.17.1"}
@@ -51,6 +46,12 @@ type WireguardPeerSpec struct {
 
 	// Sidecar containers to run
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+
+	// Reference to the wireguard resource
+	WireguardRef string `json:"wireguardRef,omitempty"`
 }
 
 type ExternalDNS struct {
@@ -85,7 +86,7 @@ type WireguardPeerStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// WireguardPeer is the Schema for the wireguards API
+// WireguardPeer is the Schema for the wireguardpeers API
 type WireguardPeer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -96,13 +97,13 @@ type WireguardPeer struct {
 
 //+kubebuilder:object:root=true
 
-// WireguardList contains a list of Wireguard
-type WireguardList struct {
+// WireguardPeerList contains a list of Wireguard Peer
+type WireguardPeerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []WireguardPeer `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&WireguardPeer{}, &WireguardList{})
+	SchemeBuilder.Register(&WireguardPeer{}, &WireguardPeerList{})
 }
