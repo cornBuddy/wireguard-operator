@@ -63,25 +63,25 @@ type WireguardPeerReconciler struct {
 func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
-	// Fetch the Wireguard instance
-	// The purpose is check if the Custom Resource for the Kind Wireguard
+	// Fetch the WireguardPeer instance
+	// The purpose is check if the Custom Resource for the Kind WireguardPeer
 	// is applied on the cluster if not we return nil to stop the reconciliation
-	wireguard := &vpnv1alpha1.WireguardPeer{}
-	err := r.Get(ctx, req.NamespacedName, wireguard)
+	peer := &vpnv1alpha1.WireguardPeer{}
+	err := r.Get(ctx, req.NamespacedName, peer)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// If the custom resource is not found then, it usually means that it was deleted or not created
 			// In this way, we will stop the reconciliation
-			log.Info("wireguard resource not found. Ignoring since object must be deleted")
+			log.Info("wireguardpeer resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get wireguard")
+		log.Error(err, "Failed to get wireguardpeer")
 		return ctrl.Result{}, err
 	}
 
 	// Let's just set the status as Unknown when no status are available
-	statusIsEmpty := wireguard.Status.Conditions == nil || len(wireguard.Status.Conditions) == 0
+	statusIsEmpty := peer.Status.Conditions == nil || len(peer.Status.Conditions) == 0
 	if statusIsEmpty {
 		condition := metav1.Condition{
 			Type:    typeAvailableWireguard,
@@ -89,47 +89,47 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Reason:  "Reconciling",
 			Message: "Starting reconciliation",
 		}
-		meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
-		if err = r.Status().Update(ctx, wireguard); err != nil {
-			log.Error(err, "Failed to update Wireguard status")
+		meta.SetStatusCondition(&peer.Status.Conditions, condition)
+		if err = r.Status().Update(ctx, peer); err != nil {
+			log.Error(err, "Failed to update WireguardPeer status")
 			return ctrl.Result{}, err
 		}
 
-		// Let's re-fetch the wireguard Custom Resource after update the status
+		// Let's re-fetch the wireguardpeer Custom Resource after update the status
 		// so that we have the latest state of the resource on the cluster and we will avoid
 		// raise the issue "the object has been modified, please apply
 		// your changes to the latest version and try again" which would re-trigger the reconciliation
 		// if we try to update it again in the following operations
-		if err := r.Get(ctx, req.NamespacedName, wireguard); err != nil {
-			log.Error(err, "Failed to re-fetch wireguard")
+		if err := r.Get(ctx, req.NamespacedName, peer); err != nil {
+			log.Error(err, "Failed to re-fetch wireguardpeer")
 			return ctrl.Result{}, err
 		}
 	}
 
 	key := types.NamespacedName{
-		Name:      wireguard.Name,
-		Namespace: wireguard.Namespace,
+		Name:      peer.Name,
+		Namespace: peer.Namespace,
 	}
 
 	// Check if the confgimap already exists, if not create a new one
 	configMap := &corev1.ConfigMap{}
 	if err := r.Get(ctx, key, configMap); err == nil {
 		log.Info("Ensured that ConfigMap is created",
-			"Wireguard.Namespace", wireguard.Namespace,
-			"Wireguard.Name", wireguard.Name)
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name)
 	} else if apierrors.IsNotFound(err) {
 		log.Info("Creating ConfigMap for",
-			"Wireguard.Namespace", wireguard.Namespace,
-			"Wireguard.Name", wireguard.Name)
-		if err := r.createConfigMap(wireguard, ctx); err != nil {
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name)
+		if err := r.createConfigMap(peer, ctx); err != nil {
 			log.Error(err, "Cannot create ConfigMap for",
-				"Wireguard.Namespace", wireguard.Namespace,
-				"Wireguard.Name", wireguard.Name)
+				"WireguardPeer.Namespace", peer.Namespace,
+				"WireguardPeer.Name", peer.Name)
 			return ctrl.Result{}, err
 		} else {
 			log.Info("ConfigMap created successfully for",
-				"Wireguard.Namespace", wireguard.Namespace,
-				"Wireguard.Name", wireguard.Name)
+				"WireguardPeer.Namespace", peer.Namespace,
+				"WireguardPeer.Name", peer.Name)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
@@ -139,21 +139,21 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	service := &corev1.Service{}
 	if err := r.Get(ctx, key, service); err == nil {
 		log.Info("Ensured that Service is created",
-			"Wireguard.Namespace", wireguard.Namespace,
-			"Wireguard.Name", wireguard.Name)
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name)
 	} else if apierrors.IsNotFound(err) {
 		log.Info("Creating Service for",
-			"Wireguard.Namespace", wireguard.Namespace,
-			"Wireguard.Name", wireguard.Name)
-		if err := r.createService(wireguard, ctx); err != nil {
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name)
+		if err := r.createService(peer, ctx); err != nil {
 			log.Error(err, "Cannot create Service for",
-				"Wireguard.Namespace", wireguard.Namespace,
-				"Wireguard.Name", wireguard.Name)
+				"WireguardPeer.Namespace", peer.Namespace,
+				"WireguardPeer.Name", peer.Name)
 			return ctrl.Result{}, err
 		} else {
 			log.Info("Service created successfully for",
-				"Wireguard.Namespace", wireguard.Namespace,
-				"Wireguard.Name", wireguard.Name)
+				"WireguardPeer.Namespace", peer.Namespace,
+				"WireguardPeer.Name", peer.Name)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
@@ -164,22 +164,22 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, key, secret); err == nil {
 		log.Info("Ensured that Secret is created",
-			"Wireguard.Namespace", wireguard.Namespace,
-			"Wireguard.Name", wireguard.Name)
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name)
 	} else if apierrors.IsNotFound(err) {
 		log.Info("Creating Secret for",
-			"Wireguard.Namespace", wireguard.Namespace,
-			"Wireguard.Name", wireguard.Name)
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name)
 		serviceIp := service.Spec.ClusterIP
-		if err := r.createSecret(wireguard, serviceIp, ctx); err != nil {
+		if err := r.createSecret(peer, serviceIp, ctx); err != nil {
 			log.Error(err, "Cannot create Secret for",
-				"Wireguard.Namespace", wireguard.Namespace,
-				"Wireguard.Name", wireguard.Name)
+				"WireguardPeer.Namespace", peer.Namespace,
+				"WireguardPeer.Name", peer.Name)
 			return ctrl.Result{}, err
 		} else {
 			log.Info("Secret created successfully for",
-				"Wireguard.Namespace", wireguard.Namespace,
-				"Wireguard.Name", wireguard.Name)
+				"WireguardPeer.Namespace", peer.Namespace,
+				"WireguardPeer.Name", peer.Name)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
@@ -191,7 +191,7 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	err = r.Get(ctx, key, deploy)
 	if err != nil && apierrors.IsNotFound(err) {
 		// Define a new deployment
-		dep, err := r.getDeployment(wireguard)
+		dep, err := r.getDeployment(peer)
 		if err != nil {
 			log.Error(err, "Failed to define new Deployment resource for Wireguard")
 
@@ -200,11 +200,11 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Type:    typeAvailableWireguard,
 				Status:  metav1.ConditionFalse,
 				Reason:  "Reconciling",
-				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", wireguard.Name, err),
+				Message: fmt.Sprintf("Failed to create Deployment for the custom resource (%s): (%s)", peer.Name, err),
 			}
-			meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
+			meta.SetStatusCondition(&peer.Status.Conditions, condition)
 
-			if err := r.Status().Update(ctx, wireguard); err != nil {
+			if err := r.Status().Update(ctx, peer); err != nil {
 				log.Error(err, "Failed to update Wireguard status")
 				return ctrl.Result{}, err
 			}
@@ -234,7 +234,7 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// to set the quantity of Deployment instances is the desired state on the cluster.
 	// Therefore, the following code will ensure the Deployment size is the same as defined
 	// via the Replicas spec of the Custom Resource which we are reconciling.
-	size := wireguard.Spec.Replicas
+	size := peer.Spec.Replicas
 	if *deploy.Spec.Replicas != size {
 		deploy.Spec.Replicas = &size
 		if err = r.Update(ctx, deploy); err != nil {
@@ -245,7 +245,7 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			// so that we have the latest state of the resource on the cluster and we will avoid
 			// raise the issue "the object has been modified, please apply
 			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, wireguard); err != nil {
+			if err := r.Get(ctx, req.NamespacedName, peer); err != nil {
 				log.Error(err, "Failed to re-fetch wireguard")
 				return ctrl.Result{}, err
 			}
@@ -254,12 +254,12 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			cdnt := metav1.Condition{
 				Type:   typeAvailableWireguard,
 				Status: metav1.ConditionFalse, Reason: "Resizing",
-				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", wireguard.Name, err),
+				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", peer.Name, err),
 			}
-			meta.SetStatusCondition(&wireguard.Status.Conditions, cdnt)
+			meta.SetStatusCondition(&peer.Status.Conditions, cdnt)
 
-			if err := r.Status().Update(ctx, wireguard); err != nil {
-				log.Error(err, "Failed to update Wireguard status")
+			if err := r.Status().Update(ctx, peer); err != nil {
+				log.Error(err, "Failed to update WireguardPeer status")
 				return ctrl.Result{}, err
 			}
 
@@ -273,15 +273,15 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// The following implementation will update the status
-	msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", wireguard.Name, size)
+	msg := fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", peer.Name, size)
 	cdnt := metav1.Condition{
 		Type:    typeAvailableWireguard,
 		Status:  metav1.ConditionTrue,
 		Reason:  "Reconciling",
 		Message: msg,
 	}
-	meta.SetStatusCondition(&wireguard.Status.Conditions, cdnt)
-	if err := r.Status().Update(ctx, wireguard); err != nil {
+	meta.SetStatusCondition(&peer.Status.Conditions, cdnt)
+	if err := r.Status().Update(ctx, peer); err != nil {
 		log.Error(err, "Failed to update Wireguard status")
 		return ctrl.Result{}, err
 	}
