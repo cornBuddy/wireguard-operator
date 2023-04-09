@@ -488,9 +488,11 @@ func (r *WireguardPeerReconciler) getSecret(
 	}
 	// FIXME: do not use container port
 	peerEndpoint := fmt.Sprintf("%s:%d", serviceIp, peer.Spec.ContainerPort)
-	// FIXME: read from corresponding wireguard resource
-	ep := "localhost"
-	serverEndpoint := fmt.Sprintf("%s:%d", ep, peer.Spec.ContainerPort)
+	serverEndpoint := fmt.Sprintf(
+		"%s:%d",
+		wireguard.Spec.EndpointAddress,
+		peer.Spec.ContainerPort,
+	)
 	// FIXME: allow to use internal k8s dns
 	dns := getFirstIpInSubnet(wireguard.Spec.Network)
 	specs := map[string]any{
