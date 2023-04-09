@@ -80,7 +80,6 @@ var _ = Describe("WireguardPeer controller", func() {
 
 	DescribeTable("should reconcile successfully",
 		func(peer *vpnv1alpha1.WireguardPeer) {
-			// TODO: move this logic into BeforeEach block
 			validateReconcile(peer)
 
 			validateConfigMap(peer)
