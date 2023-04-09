@@ -106,6 +106,19 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
+	wireguard := &vpnv1alpha1.Wireguard{}
+	wgKey := types.NamespacedName{
+		Name:      peer.Spec.WireguardRef,
+		Namespace: peer.Namespace,
+	}
+	if err := r.Get(ctx, wgKey, wireguard); err != nil {
+		log.Error(err, "Cannot find related Wireguard CR",
+			"WireguardPeer.Namespace", peer.Namespace,
+			"WireguardPeer.Name", peer.Name,
+			"Wireguard.Name", peer.Spec.WireguardRef)
+		return ctrl.Result{}, err
+	}
+
 	key := types.NamespacedName{
 		Name:      peer.Name,
 		Namespace: peer.Namespace,
@@ -171,7 +184,7 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			"WireguardPeer.Namespace", peer.Namespace,
 			"WireguardPeer.Name", peer.Name)
 		serviceIp := service.Spec.ClusterIP
-		if err := r.createSecret(peer, serviceIp, ctx); err != nil {
+		if err := r.createSecret(peer, wireguard, serviceIp, ctx); err != nil {
 			log.Error(err, "Cannot create Secret for",
 				"WireguardPeer.Namespace", peer.Namespace,
 				"WireguardPeer.Name", peer.Name)
@@ -422,28 +435,28 @@ server:
 	prefetch-key: yes`
 
 func (r *WireguardPeerReconciler) createSecret(
-	wireguard *vpnv1alpha1.WireguardPeer, serviceIp string, ctx context.Context) error {
+	peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.Wireguard, serviceIp string, ctx context.Context) error {
 
-	server, err := wgtypes.GeneratePrivateKey()
+	serverKey, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
 		return err
 	}
-	peer, err := wgtypes.GeneratePrivateKey()
+	peerKey, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
 		return err
 	}
 
-	secret, err := r.getSecret(wireguard, serviceIp, server, peer)
+	secret, err := r.getSecret(peer, wireguard, serviceIp, serverKey, peerKey)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to create Secret for the custom resource (%s): (%s)", wireguard.Name, err)
+		msg := fmt.Sprintf("Failed to create Secret for the custom resource (%s): (%s)", peer.Name, err)
 		condition := metav1.Condition{
 			Type:    typeAvailableWireguard,
 			Status:  metav1.ConditionFalse,
 			Reason:  "Reconciling",
 			Message: msg,
 		}
-		meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
-		if err := r.Status().Update(ctx, wireguard); err != nil {
+		meta.SetStatusCondition(&peer.Status.Conditions, condition)
+		if err := r.Status().Update(ctx, peer); err != nil {
 			return err
 		}
 		return err
@@ -457,44 +470,42 @@ func (r *WireguardPeerReconciler) createSecret(
 }
 
 func (r *WireguardPeerReconciler) getSecret(
-	wireguard *vpnv1alpha1.WireguardPeer, serviceIp string, server, peer wgtypes.Key) (*corev1.Secret, error) {
+	peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.Wireguard, serviceIp string, server, key wgtypes.Key) (*corev1.Secret, error) {
 
 	var keys []string
 	var peerPublicKey string
-	if wireguard.Spec.PublicKey == nil {
+	if peer.Spec.PublicKey == nil {
 		keys = []string{"wg-server", "wg-client"}
-		peerPublicKey = peer.PublicKey().String()
+		peerPublicKey = key.PublicKey().String()
 	} else {
 		keys = []string{"wg-server"}
-		peerPublicKey = *wireguard.Spec.PublicKey
+		peerPublicKey = *peer.Spec.PublicKey
 	}
 
 	configs := map[string]string{
 		"wg-server": serverConfig,
 		"wg-client": peerConfig,
 	}
-	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
 	// FIXME: do not use container port
-	port := wireguard.Spec.ContainerPort
-	peerEndpoint := fmt.Sprintf("%s:%d", serviceIp, port)
+	peerEndpoint := fmt.Sprintf("%s:%d", serviceIp, peer.Spec.ContainerPort)
 	// FIXME: read from corresponding wireguard resource
 	ep := "localhost"
-	serverEndpoint := fmt.Sprintf("%s:%d", ep, port)
+	serverEndpoint := fmt.Sprintf("%s:%d", ep, peer.Spec.ContainerPort)
 	// FIXME: allow to use internal k8s dns
-	dns := getFirstIpInSubnet(wireguard.Spec.Address)
+	dns := getFirstIpInSubnet(wireguard.Spec.Network)
 	specs := map[string]any{
 		"wg-server": serverSpec{
-			Address:           wireguard.Spec.Address,
+			Address:           peer.Spec.Address,
 			PrivateKey:        server.String(),
-			ListenPort:        wireguard.Spec.ContainerPort,
+			ListenPort:        peer.Spec.ContainerPort,
 			PeerPublicKey:     peerPublicKey,
-			PeerAddress:       peerAddress,
+			PeerAddress:       peer.Spec.Address,
 			PeerEndpoint:      peerEndpoint,
-			DropConnectionsTo: wireguard.Spec.DropConnectionsTo,
+			DropConnectionsTo: peer.Spec.DropConnectionsTo,
 		},
 		"wg-client": clientSpec{
-			Address:         peerAddress,
-			PrivateKey:      peer.String(),
+			Address:         peer.Spec.Address,
+			PrivateKey:      key.String(),
 			ServerPublicKey: server.PublicKey().String(),
 			ServerEndpoint:  serverEndpoint,
 			DNS:             dns,
@@ -518,13 +529,13 @@ func (r *WireguardPeerReconciler) getSecret(
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wireguard.Name,
-			Namespace: wireguard.Namespace,
+			Name:      peer.Name,
+			Namespace: peer.Namespace,
 		},
 		StringData: data,
 	}
 
-	if err := ctrl.SetControllerReference(wireguard, secret, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(peer, secret, r.Scheme); err != nil {
 		return nil, err
 	}
 
@@ -784,14 +795,6 @@ type containerMounts struct {
 }
 
 func toPtr[V any](o V) *V { return &o }
-
-// returns last ip in the subnet. examples:
-func getLastIpInSubnet(cidr string) string {
-	// ignore error since cidr should be validated already
-	_, net, _ := iplib.ParseCIDR(cidr)
-	last := net.LastAddress().String()
-	return fmt.Sprintf("%s/32", last)
-}
 
 // returns first ip in the subnet. examples:
 func getFirstIpInSubnet(cidr string) string {

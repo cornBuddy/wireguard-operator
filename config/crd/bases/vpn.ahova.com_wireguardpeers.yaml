@@ -896,8 +896,8 @@ spec:
                     type: string
                 type: object
               network:
-                default: 192.168.254.253/30
-                description: Address space to use
+                default: 192.168.254.2
+                description: IP address of the peer
                 type: string
               peerPublicKey:
                 description: Public key of the peer. If the field is provided, it
@@ -2158,7 +2158,6 @@ spec:
                 type: array
               wireguardRef:
                 description: Reference to the wireguard resource
-                minLength: 1
                 type: string
             type: object
           status:

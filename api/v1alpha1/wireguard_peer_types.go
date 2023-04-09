@@ -28,9 +28,9 @@ type WireguardPeerSpec struct {
 	// Port defines the port that will be used to init the container with the image
 	ContainerPort int32 `json:"containerPort,omitempty"`
 
-	// +kubebuilder:default="192.168.254.253/30"
+	// +kubebuilder:default="192.168.254.2"
 
-	// Address space to use
+	// IP address of the peer
 	Address string `json:"network,omitempty"`
 
 	// FIXME: defaults for the struct provided twice
@@ -48,7 +48,6 @@ type WireguardPeerSpec struct {
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`
 
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
 
 	// Reference to the wireguard resource
 	WireguardRef string `json:"wireguardRef,omitempty"`

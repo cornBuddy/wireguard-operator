@@ -42,6 +42,10 @@ spec:
                 default: localhost
                 description: Public address to the wireguard network
                 type: string
+              network:
+                default: 192.168.254.1/24
+                description: Network space to use
+                type: string
             type: object
         type: object
     served: true

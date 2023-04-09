@@ -136,9 +136,52 @@ var _ = Describe("WireguardPeer controller", func() {
 	)
 })
 
-// Validates Wireguard resource and all dependent resources
+// Validates reconcilation of peer. Creates WireguardPeer CR as a side effect
+func validateReconcile(peer *vpnv1alpha1.WireguardPeer) {
+	GinkgoHelper()
+
+	key := types.NamespacedName{
+		Name:      peer.ObjectMeta.Name,
+		Namespace: peer.ObjectMeta.Namespace,
+	}
+
+	By("Creating the custom resource for the Kind Wireguard")
+	Expect(k8sClient.Create(context.TODO(), peer)).To(Succeed())
+
+	By("Checking if the custom resource was successfully created")
+	Eventually(func() error {
+		return k8sClient.Get(context.TODO(), key, &vpnv1alpha1.WireguardPeer{})
+	}, timeout, interval).Should(Succeed())
+
+	By("Reconciling the custom resource created")
+	Expect(reconcileWireguard(context.TODO(), key)).To(Succeed())
+}
+
+func validateConfigMap(peer *vpnv1alpha1.WireguardPeer) {
+	GinkgoHelper()
+
+	key := types.NamespacedName{
+		Name:      peer.ObjectMeta.Name,
+		Namespace: peer.ObjectMeta.Namespace,
+	}
+
+	By("Checking if ConfigMap was successfully created in the reconciliation")
+	Eventually(func() error {
+		found := &corev1.ConfigMap{}
+		return k8sClient.Get(context.TODO(), key, found)
+	}, timeout, interval).Should(Succeed())
+}
+
+// Validates WireguardPeer resource and all dependent resources
 func testReconcile(peer *vpnv1alpha1.WireguardPeer) {
 	GinkgoHelper()
+
+	// TODO: move this logic into BeforeEach block
+	validateReconcile(peer)
+
+	validateConfigMap(peer)
+
+	// TODO: make as above and then move to the describe table body
 
 	By("Setting prerequisites")
 	key := types.NamespacedName{
@@ -146,24 +189,6 @@ func testReconcile(peer *vpnv1alpha1.WireguardPeer) {
 		Namespace: peer.ObjectMeta.Namespace,
 	}
 	ctx := context.TODO()
-
-	By("Creating the custom resource for the Kind Wireguard")
-	Expect(k8sClient.Create(ctx, peer)).To(Succeed())
-
-	By("Checking if the custom resource was successfully created")
-	Eventually(func() error {
-		found := &vpnv1alpha1.WireguardPeer{}
-		return k8sClient.Get(ctx, key, found)
-	}, timeout, interval).Should(Succeed())
-
-	By("Reconciling the custom resource created")
-	Expect(reconcileWireguard(ctx, key)).To(Succeed())
-
-	By("Checking if ConfigMap was successfully created in the reconciliation")
-	Eventually(func() error {
-		found := &corev1.ConfigMap{}
-		return k8sClient.Get(ctx, key, found)
-	}, timeout, interval).Should(Succeed())
 
 	By("Checking if Secret was successfully created in the reconciliation")
 	Eventually(func() error {
@@ -178,10 +203,9 @@ func testReconcile(peer *vpnv1alpha1.WireguardPeer) {
 			Expect(secret.Data).To(Not(HaveKey("wg-client")))
 		}
 
-		peerAddr := getLastIpInSubnet(peer.Spec.Address)
 		masquerade := fmt.Sprintf(
 			"PostUp = iptables --table nat --append POSTROUTING --source %s --out-interface eth0 --jump MASQUERADE",
-			peerAddr,
+			peer.Spec.Address,
 		)
 		mandatoryPostUps := []string{
 			"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
@@ -314,28 +338,18 @@ func createIfNotExists(obj client.Object) error {
 	return nil
 }
 
-func getHardeningPostUps(wireguard *vpnv1alpha1.WireguardPeer) []string {
+func getHardeningPostUps(peer *vpnv1alpha1.WireguardPeer) []string {
 	var postUps []string
-	peerAddress := getLastIpInSubnet(wireguard.Spec.Address)
-	for _, dest := range wireguard.Spec.DropConnectionsTo {
+	for _, dest := range peer.Spec.DropConnectionsTo {
 		postUp := fmt.Sprintf(
 			"PostUp = iptables --insert FORWARD --source %s --destination %s --jump DROP",
-			peerAddress,
+			peer.Spec.Address,
 			dest,
 		)
 		postUps = append(postUps, postUp)
 	}
 	return postUps
 }
-
-var _ = DescribeTable("getLastIpInSubnet",
-	func(input, want string) {
-		got := getLastIpInSubnet(input)
-		Expect(got).To(Equal(want))
-	},
-	Entry("smol", "192.168.254.253/30", "192.168.254.254/32"),
-	Entry("chungus", "192.168.1.1/24", "192.168.1.254/32"),
-)
 
 var _ = DescribeTable("getFirstIpInSubnet",
 	func(input, want string) {

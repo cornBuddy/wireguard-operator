@@ -14,6 +14,11 @@ type WireguardSpec struct {
 
 	// IP addresses allowed to be routed
 	AllowedIPs string `json:"allowedIPs,omitempty"`
+
+	// +kubebuilder:default="192.168.254.1/24"
+
+	// Network space to use
+	Network string `json:"network,omitempty"`
 }
 
 //+kubebuilder:object:root=true
