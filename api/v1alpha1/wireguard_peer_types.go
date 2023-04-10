@@ -7,6 +7,14 @@ import (
 
 // WireguardPeerSpec defines the desired state of Wireguard
 type WireguardPeerSpec struct {
+	// +kubebuilder:validation:Required
+
+	// Reference to the wireguard resource
+	WireguardRef string `json:"wireguardRef,omitempty"`
+
+	// DNS configuration for peer
+	DNS DNS `json:"dns,omitempty"`
+
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=3
 	// +kubebuilder:validation:ExclusiveMaximum=false
@@ -25,19 +33,14 @@ type WireguardPeerSpec struct {
 
 	// +kubebuilder:default=51820
 
-	// Port defines the port that will be used to init the container with the image
+	// Port defines the port that will be used to init the container with
+	// the image
 	ContainerPort int32 `json:"containerPort,omitempty"`
 
 	// +kubebuilder:default="192.168.254.2"
 
 	// IP address of the peer
 	Address string `json:"network,omitempty"`
-
-	// FIXME: defaults for the struct provided twice
-	// +kubebuilder:default={enabled: true, image: "docker.io/klutchell/unbound:v1.17.1"}
-
-	// Provides configuration of the dns sidecar
-	ExternalDNS ExternalDNS `json:"externalDns,omitempty"`
 
 	// +kubebuilder:default={"192.168.0.0/16","172.16.0.0/12","10.0.0.0/8","169.254.169.254/32"}
 
@@ -46,23 +49,23 @@ type WireguardPeerSpec struct {
 
 	// Sidecar containers to run
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`
-
-	// +kubebuilder:validation:Required
-
-	// Reference to the wireguard resource
-	WireguardRef string `json:"wireguardRef,omitempty"`
 }
 
-type ExternalDNS struct {
+type DNS struct {
 	// +kubebuilder:default=true
 
-	// Indicates whether to enable external dns
-	Enabled bool `json:"enabled,omitempty"`
+	// Indicates whether to use internal kubernetes dns
+	DeployServer bool `json:"deployServer,omitempty"`
 
 	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
 
-	// Image defines the image of the unbound container
+	// Image defines the image of the dns server
 	Image string `json:"image,omitempty"`
+
+	// +kubebuilder:default="192.168.254.1"
+
+	// Address is an IPV4 address of the DNS server
+	Address string `json:"address,omitempty"`
 }
 
 // WireguardPeerStatus defines the observed state of Wireguard

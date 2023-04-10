@@ -869,6 +869,22 @@ spec:
                   with the image
                 format: int32
                 type: integer
+              dns:
+                description: DNS configuration for peer
+                properties:
+                  address:
+                    default: 192.168.254.1
+                    description: Address is an IPV4 address of the DNS server
+                    type: string
+                  deployServer:
+                    default: true
+                    description: Indicates whether to use internal kubernetes dns
+                    type: boolean
+                  image:
+                    default: docker.io/klutchell/unbound:v1.17.1
+                    description: Image defines the image of the dns server
+                    type: string
+                type: object
               dropConnectionsTo:
                 default:
                 - 192.168.0.0/16
@@ -880,21 +896,6 @@ spec:
                 items:
                   type: string
                 type: array
-              externalDns:
-                default:
-                  enabled: true
-                  image: docker.io/klutchell/unbound:v1.17.1
-                description: Provides configuration of the dns sidecar
-                properties:
-                  enabled:
-                    default: true
-                    description: Indicates whether to enable external dns
-                    type: boolean
-                  image:
-                    default: docker.io/klutchell/unbound:v1.17.1
-                    description: Image defines the image of the unbound container
-                    type: string
-                type: object
               network:
                 default: 192.168.254.2
                 description: IP address of the peer

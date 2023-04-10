@@ -303,44 +303,44 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *WireguardPeerReconciler) getService(
-	wireguard *vpnv1alpha1.WireguardPeer) (*corev1.Service, error) {
-	ls := getLabels(wireguard.Name)
+	peer *vpnv1alpha1.WireguardPeer) (*corev1.Service, error) {
+	ls := getLabels(peer.Name)
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wireguard.Name,
-			Namespace: wireguard.Namespace,
+			Name:      peer.Name,
+			Namespace: peer.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: ls,
 			Ports: []corev1.ServicePort{{
 				Name:     "wireguard",
 				Protocol: "UDP",
-				Port:     wireguard.Spec.ContainerPort,
+				Port:     peer.Spec.ContainerPort,
 			}},
 		},
 	}
 
-	if err := ctrl.SetControllerReference(wireguard, service, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(peer, service, r.Scheme); err != nil {
 		return nil, err
 	}
 	return service, nil
 }
 
 func (r *WireguardPeerReconciler) createService(
-	wireguard *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
+	peer *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
 
-	service, err := r.getService(wireguard)
+	service, err := r.getService(peer)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", wireguard.Name, err)
+		msg := fmt.Sprintf("Failed to create Service for the custom resource (%s): (%s)", peer.Name, err)
 		cdtn := metav1.Condition{
 			Type:    typeAvailableWireguard,
 			Status:  metav1.ConditionFalse,
 			Reason:  "Reconciling",
 			Message: msg,
 		}
-		meta.SetStatusCondition(&wireguard.Status.Conditions, cdtn)
-		if err := r.Status().Update(ctx, wireguard); err != nil {
+		meta.SetStatusCondition(&peer.Status.Conditions, cdtn)
+		if err := r.Status().Update(ctx, peer); err != nil {
 			return err
 		}
 		return err
@@ -352,19 +352,19 @@ func (r *WireguardPeerReconciler) createService(
 }
 
 func (r *WireguardPeerReconciler) createConfigMap(
-	wireguard *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
+	peer *vpnv1alpha1.WireguardPeer, ctx context.Context) error {
 
-	cm, err := r.getConfigMap(wireguard)
+	cm, err := r.getConfigMap(peer)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to create ConfigMap for the custom resource (%s): (%s)", wireguard.Name, err)
+		msg := fmt.Sprintf("Failed to create ConfigMap for the custom resource (%s): (%s)", peer.Name, err)
 		condition := metav1.Condition{
 			Type:    typeAvailableWireguard,
 			Status:  metav1.ConditionFalse,
 			Reason:  "Reconciling",
 			Message: msg,
 		}
-		meta.SetStatusCondition(&wireguard.Status.Conditions, condition)
-		if err := r.Status().Update(ctx, wireguard); err != nil {
+		meta.SetStatusCondition(&peer.Status.Conditions, condition)
+		if err := r.Status().Update(ctx, peer); err != nil {
 			return err
 		}
 		return err
@@ -377,7 +377,7 @@ func (r *WireguardPeerReconciler) createConfigMap(
 
 // getConfigMap returns a Wireguard ConfigMap object
 func (r *WireguardPeerReconciler) getConfigMap(
-	wireguard *vpnv1alpha1.WireguardPeer) (*corev1.ConfigMap, error) {
+	peer *vpnv1alpha1.WireguardPeer) (*corev1.ConfigMap, error) {
 
 	unboundTemplate, err := template.New("unbound").Parse(unboundConfTmpl)
 	if err != nil {
@@ -385,22 +385,22 @@ func (r *WireguardPeerReconciler) getConfigMap(
 	}
 
 	buf := new(bytes.Buffer)
-	if err := unboundTemplate.Execute(buf, wireguard.Spec); err != nil {
+	if err := unboundTemplate.Execute(buf, peer.Spec); err != nil {
 		return nil, err
 	}
 	unboundConf := buf.String()
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wireguard.Name,
-			Namespace: wireguard.Namespace,
+			Name:      peer.Name,
+			Namespace: peer.Namespace,
 		},
 		Data: map[string]string{
 			"unbound.conf": unboundConf,
 		},
 	}
 
-	if err := ctrl.SetControllerReference(wireguard, configMap, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(peer, configMap, r.Scheme); err != nil {
 		return nil, err
 	}
 
@@ -592,9 +592,9 @@ Endpoint = {{ .ServerEndpoint }}`
 
 // getDeployment returns a Wireguard Deployment object
 func (r *WireguardPeerReconciler) getDeployment(
-	wireguard *vpnv1alpha1.WireguardPeer) (*appsv1.Deployment, error) {
+	peer *vpnv1alpha1.WireguardPeer) (*appsv1.Deployment, error) {
 
-	volumes, mounts := getVolumes(wireguard)
+	volumes, mounts := getVolumes(peer)
 
 	wireguardContainer := corev1.Container{
 		Image:           getWireguardImage(),
@@ -611,7 +611,7 @@ func (r *WireguardPeerReconciler) getDeployment(
 			},
 		},
 		Ports: []corev1.ContainerPort{{
-			ContainerPort: wireguard.Spec.ContainerPort,
+			ContainerPort: peer.Spec.ContainerPort,
 			Name:          "wireguard",
 			Protocol:      "UDP",
 		}},
@@ -653,7 +653,7 @@ func (r *WireguardPeerReconciler) getDeployment(
 	}
 
 	unboundContainer := corev1.Container{
-		Image:           wireguard.Spec.ExternalDNS.Image,
+		Image:           peer.Spec.DNS.Image,
 		Name:            "unbound",
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"unbound"},
@@ -666,7 +666,7 @@ func (r *WireguardPeerReconciler) getDeployment(
 	}
 
 	podSpec := &corev1.PodSpec{
-		Affinity: wireguard.Spec.Affinity,
+		Affinity: peer.Spec.Affinity,
 		SecurityContext: &corev1.PodSecurityContext{
 			Sysctls: []corev1.Sysctl{{
 				Name:  "net.ipv4.ip_forward",
@@ -678,29 +678,29 @@ func (r *WireguardPeerReconciler) getDeployment(
 		},
 		Volumes: volumes,
 	}
-	if wireguard.Spec.ExternalDNS.Enabled {
+	if peer.Spec.DNS.DeployServer {
 		podSpec.DNSPolicy = corev1.DNSNone
 		podSpec.DNSConfig = &corev1.PodDNSConfig{
 			Nameservers: []string{"127.0.0.1"},
 		}
 		podSpec.Containers = append(podSpec.Containers, unboundContainer)
 	}
-	podSpec.Containers = append(podSpec.Containers, wireguard.Spec.Sidecars...)
+	podSpec.Containers = append(podSpec.Containers, peer.Spec.Sidecars...)
 
-	replicas := wireguard.Spec.Replicas
+	replicas := peer.Spec.Replicas
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wireguard.Name,
-			Namespace: wireguard.Namespace,
+			Name:      peer.Name,
+			Namespace: peer.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: getLabels(wireguard.Name),
+				MatchLabels: getLabels(peer.Name),
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: getLabels(wireguard.Name),
+					Labels: getLabels(peer.Name),
 				},
 				Spec: *podSpec,
 			},
@@ -709,18 +709,18 @@ func (r *WireguardPeerReconciler) getDeployment(
 
 	// Set the ownerRef for the Deployment
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/
-	if err := ctrl.SetControllerReference(wireguard, dep, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(peer, dep, r.Scheme); err != nil {
 		return nil, err
 	}
 	return dep, nil
 }
 
-func getVolumes(wireguard *vpnv1alpha1.WireguardPeer) ([]corev1.Volume, containerMounts) {
+func getVolumes(peer *vpnv1alpha1.WireguardPeer) ([]corev1.Volume, containerMounts) {
 	volumes := []corev1.Volume{{
 		Name: "wireguard-config",
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
-				SecretName: wireguard.Name,
+				SecretName: peer.Name,
 				Items: []corev1.KeyToPath{{
 					Key:  "wg-server",
 					Path: "wg0.conf",
@@ -736,13 +736,13 @@ func getVolumes(wireguard *vpnv1alpha1.WireguardPeer) ([]corev1.Volume, containe
 			MountPath: "/config",
 		}},
 	}
-	if wireguard.Spec.ExternalDNS.Enabled {
+	if peer.Spec.DNS.DeployServer {
 		volumes = append(volumes, corev1.Volume{
 			Name: "unbound-config",
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: wireguard.Name,
+						Name: peer.Name,
 					},
 					Items: []corev1.KeyToPath{{
 						Key:  "unbound.conf",

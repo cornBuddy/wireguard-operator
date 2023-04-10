@@ -50,7 +50,7 @@ var _ = Describe("WireguardPeer controller", func() {
 	key, _ := wgtypes.GeneratePrivateKey()
 
 	BeforeEach(func() {
-		By("Creating wireguard CR")
+		By("Creating wireguard CRs")
 		wireguard := &vpnv1alpha1.Wireguard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "wireguard",
@@ -109,9 +109,6 @@ var _ = Describe("WireguardPeer controller", func() {
 				},
 				Spec: vpnv1alpha1.WireguardPeerSpec{
 					WireguardRef: "wireguard",
-					ExternalDNS: vpnv1alpha1.ExternalDNS{
-						Enabled: false,
-					},
 				},
 			},
 		),
@@ -162,7 +159,7 @@ func validateReconcile(peer *vpnv1alpha1.WireguardPeer) {
 	).Should(Succeed())
 
 	By("Reconciling the custom resource created")
-	Expect(reconcileWireguard(context.TODO(), key)).To(Succeed())
+	Expect(reconcilePeer(context.TODO(), key)).To(Succeed())
 }
 
 func validateConfigMap(peer *vpnv1alpha1.WireguardPeer) {
@@ -253,7 +250,7 @@ func validateDeployment(peer *vpnv1alpha1.WireguardPeer) {
 		dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
 		volumes := deploy.Spec.Template.Spec.Volumes
 		sidecarsLen := len(peer.Spec.Sidecars)
-		if peer.Spec.ExternalDNS.Enabled {
+		if peer.Spec.DNS.DeployServer {
 			Expect(len(containers)).To(Equal(2 + sidecarsLen))
 			Expect(len(volumes)).To(Equal(2))
 			want := &corev1.PodDNSConfig{
@@ -315,7 +312,7 @@ func validatePeerCR(peer *vpnv1alpha1.WireguardPeer) {
 // Validates WireguardPeer resource and all dependent resources
 
 // Performs full reconcildation loop for wireguard
-func reconcileWireguard(ctx context.Context, key types.NamespacedName) error {
+func reconcilePeer(ctx context.Context, key types.NamespacedName) error {
 	reconciler := &WireguardPeerReconciler{
 		Client: k8sClient,
 		Scheme: k8sClient.Scheme(),
