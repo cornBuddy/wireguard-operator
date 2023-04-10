@@ -900,7 +900,7 @@ spec:
                 default: 192.168.254.2
                 description: IP address of the peer
                 type: string
-              peerPublicKey:
+              publicKey:
                 description: Public key of the peer. If the field is provided, it
                   is assumed that client peer is already configured, so no client
                   config will be defined in corresponding secret

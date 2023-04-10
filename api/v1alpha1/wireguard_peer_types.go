@@ -29,7 +29,7 @@ type WireguardPeerSpec struct {
 	// Public key of the peer. If the field is provided, it is assumed that
 	// client peer is already configured, so no client config will be
 	// defined in corresponding secret
-	PublicKey *string `json:"peerPublicKey,omitempty"`
+	PublicKey *string `json:"publicKey,omitempty"`
 
 	// +kubebuilder:default=51820
 
