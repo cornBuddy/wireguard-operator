@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/vpn.ahova.com_wireguardpeers.yaml
+- bases/vpn.ahova.com_wireguards.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:

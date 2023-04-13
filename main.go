@@ -76,6 +76,16 @@ func main() {
 	if err = (&controllers.WireguardPeerReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("wireguard-peer-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "WireguardPeer")
+		os.Exit(1)
+	}
+	//+kubebuilder:scaffold:builder
+
+	if err = (&controllers.WireguardReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("wireguard-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Wireguard")

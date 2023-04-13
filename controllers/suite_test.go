@@ -1,29 +1,42 @@
 package controllers
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
+const (
+	timeout  = 10 * time.Second
+	interval = 200 * time.Millisecond
+)
 
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
+var (
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
+)
+
+type Reconciler interface {
+	Reconcile(context.Context, ctrl.Request) (ctrl.Result, error)
+}
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -62,3 +75,39 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+// Validates reconcilation of custom resource. Creates custom resource as a side
+// effect
+func validateReconcile(object client.Object, reconciler Reconciler) {
+	key := types.NamespacedName{
+		Name:      object.GetName(),
+		Namespace: object.GetNamespace(),
+	}
+
+	Eventually(func(g Gomega) {
+		By("Creating the custom resource")
+		g.Expect(k8sClient.Create(context.TODO(), object)).To(Succeed())
+
+		By("Checking if the custom resource was successfully created")
+		g.Expect(k8sClient.Get(context.TODO(), key, object)).To(Succeed())
+
+		By("Reconciling the custom resource created")
+		g.Expect(reconcileCustomResource(key, reconciler)).To(Succeed())
+	}, timeout, interval).Should(Succeed())
+}
+
+// Performs full reconcildation loop for wireguard
+func reconcileCustomResource(key types.NamespacedName, reconciler Reconciler) error {
+	// Reconcile resource multiple times to ensure that all resources are
+	// created
+	const reconcilationLoops = 5
+	for i := 0; i < reconcilationLoops; i++ {
+		req := reconcile.Request{
+			NamespacedName: key,
+		}
+		if _, err := reconciler.Reconcile(context.TODO(), req); err != nil {
+			return err
+		}
+	}
+	return nil
+}

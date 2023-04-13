@@ -1,10 +1,19 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type WireguardSpec struct {
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=3
+	// +kubebuilder:validation:ExclusiveMaximum=false
+	// +kubebuilder:default=1
+
+	// Replicas defines the number of Wireguard instances
+	Replicas int32 `json:"replicas,omitempty"`
+
 	// +kubebuilder:default="localhost"
 
 	// Public address to the wireguard network
@@ -19,6 +28,37 @@ type WireguardSpec struct {
 
 	// Network space to use
 	Network string `json:"network,omitempty"`
+
+	// +kubebuilder:default={"192.168.0.0/16","172.16.0.0/12","10.0.0.0/8","169.254.169.254/32"}
+
+	// Do not allow connections from peer to DropConnectionsTo IP addresses
+	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
+
+	// +kubebuilder:default={deployServer:true,image:"docker.io/klutchell/unbound:v1.17.1",address:"127.0.0.1"}
+
+	// DNS configuration for peer
+	DNS DNS `json:"dns,omitempty"`
+
+	// Sidecar containers to run
+	Sidecars []corev1.Container `json:"sidecars,omitempty"`
+
+	// Affinity configuration
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+}
+
+type DNS struct {
+	// Indicates whether to use internal kubernetes dns
+	DeployServer bool `json:"deployServer,omitempty"`
+
+	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
+
+	// Image defines the image of the dns server
+	Image string `json:"image,omitempty"`
+
+	// +kubebuilder:default="127.0.0.1"
+
+	// Address is an IPV4 address of the DNS server
+	Address string `json:"address,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -3,7 +3,7 @@ module github.com/ahova-vpn/wireguard-operator
 go 1.19
 
 require (
-	github.com/c-robinson/iplib v1.0.6
+	github.com/cisco-open/k8s-objectmatcher v1.9.0
 	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.6
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde
@@ -15,10 +15,12 @@ require (
 )
 
 require (
+	emperror.dev/errors v0.8.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
+	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect

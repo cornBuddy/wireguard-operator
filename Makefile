@@ -103,11 +103,10 @@ vet: ## Run go vet against code.
 
 .PHONY: tidy
 tidy:
-	go get -u
 	go mod tidy
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
+test: manifests generate fmt vet tidy envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile cover.out
 
 .PHONY: coverage
@@ -159,7 +158,7 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
 .PHONY: samples
-samples: manifests kustomize ## Deploy samples
+samples: install ## Deploy samples
 	$(KUSTOMIZE) build config/samples | kubectl apply -f -
 
 .PHONY: uninstall
@@ -263,9 +262,3 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
-
-.PHONY: minikube
-minikube:
-	minikube start \
-	--driver=docker \
-	--extra-config="kubelet.allowed-unsafe-sysctls=net.ipv4*,net.ipv6*"
