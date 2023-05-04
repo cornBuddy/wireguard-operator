@@ -165,7 +165,7 @@ func validateWireguardSecret(wireguard *vpnv1alpha1.Wireguard, peers vpnv1alpha1
 		g.Expect(secret.Data).To(HaveKey("private-key"))
 
 		annotations := secret.GetAnnotations()
-		g.Expect(annotations).To(HaveKey("banzaicloud.com/last-applied"))
+		g.Expect(annotations).To(HaveKey("vpn.ahova.com/last-applied"))
 
 		const keyLength = 44
 		g.Expect(secret.Data["public-key"]).To(HaveLen(keyLength))

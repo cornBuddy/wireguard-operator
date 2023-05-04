@@ -566,7 +566,7 @@ func (r *WireguardReconciler) createOrUpdate(
 	}
 
 	// annotate newly created resource
-	annotator := patch.DefaultAnnotator
+	annotator := patch.NewAnnotator("vpn.ahova.com/last-applied")
 	if err := annotator.SetLastAppliedAnnotation(desired); err != nil {
 		return false, err
 	}
