@@ -50,12 +50,8 @@ type DNS struct {
 	// Indicates whether to use internal kubernetes dns
 	DeployServer bool `json:"deployServer,omitempty"`
 
-	// +kubebuilder:default="docker.io/klutchell/unbound:v1.17.1"
-
 	// Image defines the image of the dns server
 	Image string `json:"image,omitempty"`
-
-	// +kubebuilder:default="127.0.0.1"
 
 	// Address is an IPV4 address of the DNS server
 	Address string `json:"address,omitempty"`

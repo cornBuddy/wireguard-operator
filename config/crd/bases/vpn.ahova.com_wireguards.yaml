@@ -874,14 +874,12 @@ spec:
                 description: DNS configuration for peer
                 properties:
                   address:
-                    default: 127.0.0.1
                     description: Address is an IPV4 address of the DNS server
                     type: string
                   deployServer:
                     description: Indicates whether to use internal kubernetes dns
                     type: boolean
                   image:
-                    default: docker.io/klutchell/unbound:v1.17.1
                     description: Image defines the image of the dns server
                     type: string
                 type: object
