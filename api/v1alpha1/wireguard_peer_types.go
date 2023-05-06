@@ -19,7 +19,7 @@ type WireguardPeerSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=44
 	// +kubebuilder:validation:MinLength=44
-	// +kubebuilder:example:="WsFemZZdyC+ajbvOtKA7dltaNCaPOusKmkJffjMOMmg="
+	// +kubebuilder:example="WsFemZZdyC+ajbvOtKA7dltaNCaPOusKmkJffjMOMmg="
 
 	// Public key of the peer
 	PublicKey *string `json:"publicKey,omitempty"`
