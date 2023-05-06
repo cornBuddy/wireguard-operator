@@ -5,11 +5,3 @@ metadata:
   name: wireguard
 spec:
   replicas: 1
-
----
-apiVersion: vpn.ahova.com/v1alpha1
-kind: WireguardPeer
-metadata:
-  name: peer
-spec:
-  wireguardRef: wireguard

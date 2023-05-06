@@ -75,6 +75,19 @@ var _ = Describe("WireguardPeer controller", func() {
 				},
 			},
 		),
+		Entry(
+			"public key configuration",
+			&vpnv1alpha1.WireguardPeer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "peer-public-key",
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: vpnv1alpha1.WireguardPeerSpec{
+					WireguardRef: wireguardName,
+					PublicKey:    toPtr("WsFemZZdyC+ajbvOtKA7dltaNCaPOusKmkJffjMOMmg="),
+				},
+			},
+		),
 	)
 })
 
@@ -84,46 +97,52 @@ func validatePeerSecret(peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.
 		Namespace: peer.GetNamespace(),
 	}
 	secret := &corev1.Secret{}
+	const keyLength = 44
 
 	By("Checking if Secret were created successfully during reconcilation")
 	Eventually(func(g Gomega) {
 		g.Expect(k8sClient.Get(context.TODO(), key, secret)).To(Succeed())
-		g.Expect(secret.Data).To(HaveKey("config"))
 		g.Expect(secret.Data).To(HaveKey("public-key"))
-		g.Expect(secret.Data).To(HaveKey("private-key"))
-
-		const keyLength = 44
-		g.Expect(secret.Data["private-key"]).To(HaveLen(keyLength))
 		g.Expect(secret.Data["public-key"]).To(HaveLen(keyLength))
-		privateKey := string(secret.Data["private-key"])
-		peerKey, err := wgtypes.ParseKey(privateKey)
-		g.Expect(err).To(BeNil())
-		pubKey := peerKey.PublicKey().String()
-		g.Expect(string(secret.Data["public-key"])).To(Equal(pubKey))
 
-		cfg := string(secret.Data["config"])
-		addr := fmt.Sprintf("Address = %s/32", peer.Spec.Address)
-		g.Expect(cfg).To(ContainSubstring(addr))
+		if peer.Spec.PublicKey == nil {
+			g.Expect(secret.Data).To(HaveKey("config"))
+			g.Expect(secret.Data).To(HaveKey("private-key"))
 
-		privKeyConfig := fmt.Sprintf("PrivateKey = %s", privateKey)
-		g.Expect(cfg).To(ContainSubstring(privKeyConfig))
+			g.Expect(secret.Data["private-key"]).To(HaveLen(keyLength))
+			privateKey := string(secret.Data["private-key"])
+			peerKey, err := wgtypes.ParseKey(privateKey)
+			g.Expect(err).To(BeNil())
+			pubKey := peerKey.PublicKey().String()
+			g.Expect(string(secret.Data["public-key"])).To(Equal(pubKey))
 
-		dns := fmt.Sprintf("DNS = %s", wireguard.Spec.DNS.Address)
-		g.Expect(cfg).To(ContainSubstring(dns))
+			cfg := string(secret.Data["config"])
+			addr := fmt.Sprintf("Address = %s/32", peer.Spec.Address)
+			g.Expect(cfg).To(ContainSubstring(addr))
 
-		wgKey := types.NamespacedName{
-			Name:      wireguard.GetName(),
-			Namespace: wireguard.GetNamespace(),
+			privKeyConfig := fmt.Sprintf("PrivateKey = %s", privateKey)
+			g.Expect(cfg).To(ContainSubstring(privKeyConfig))
+
+			dns := fmt.Sprintf("DNS = %s", wireguard.Spec.DNS.Address)
+			g.Expect(cfg).To(ContainSubstring(dns))
+
+			wgKey := types.NamespacedName{
+				Name:      wireguard.GetName(),
+				Namespace: wireguard.GetNamespace(),
+			}
+			wgSecret := &corev1.Secret{}
+			g.Expect(k8sClient.Get(context.TODO(), wgKey, wgSecret)).To(Succeed())
+			pubKeyConfig := fmt.Sprintf("PublicKey = %s", wgSecret.Data["public-key"])
+			g.Expect(cfg).To(ContainSubstring(pubKeyConfig))
+
+			ep := fmt.Sprintf("Endpoint = %s", wireguard.Spec.EndpointAddress)
+			g.Expect(cfg).To(ContainSubstring(ep))
+
+			ips := "AllowedIPs = 0.0.0.0/0, ::/0"
+			g.Expect(cfg).To(ContainSubstring(ips))
+		} else {
+			g.Expect(secret.Data).ToNot(HaveKey("config"))
+			g.Expect(secret.Data).ToNot(HaveKey("private-key"))
 		}
-		wgSecret := &corev1.Secret{}
-		g.Expect(k8sClient.Get(context.TODO(), wgKey, wgSecret)).To(Succeed())
-		pubKeyConfig := fmt.Sprintf("PublicKey = %s", wgSecret.Data["public-key"])
-		g.Expect(cfg).To(ContainSubstring(pubKeyConfig))
-
-		ep := fmt.Sprintf("Endpoint = %s", wireguard.Spec.EndpointAddress)
-		g.Expect(cfg).To(ContainSubstring(ep))
-
-		ips := "AllowedIPs = 0.0.0.0/0, ::/0"
-		g.Expect(cfg).To(ContainSubstring(ips))
 	}, timeout, interval).Should(Succeed())
 }

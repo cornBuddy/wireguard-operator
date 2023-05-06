@@ -35,9 +35,14 @@ spec:
           spec:
             description: WireguardPeerSpec defines the desired state of Wireguard
             properties:
-              network:
+              address:
                 default: 192.168.254.2
                 description: IP address of the peer
+                type: string
+              publicKey:
+                description: Public key of the peer
+                maxLength: 44
+                minLength: 44
                 type: string
               wireguardRef:
                 description: Reference to the wireguard resource

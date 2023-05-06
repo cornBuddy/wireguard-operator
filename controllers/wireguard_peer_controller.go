@@ -115,36 +115,52 @@ AllowedIPs = {{ .AllowedIPs }}`
 func (r *WireguardPeerReconciler) getSecret(
 	peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.Wireguard) (*corev1.Secret, error) {
 
-	tmpl, err := template.New("peer").Parse(peerConfigTemplate)
-	if err != nil {
-		return nil, err
-	}
+	var data map[string][]byte
+	if peer.Spec.PublicKey == nil {
+		tmpl, err := template.New("peer").Parse(peerConfigTemplate)
+		if err != nil {
+			return nil, err
+		}
 
-	key, err := wgtypes.GenerateKey()
-	if err != nil {
-		return nil, err
-	}
+		key, err := wgtypes.GenerateKey()
+		if err != nil {
+			return nil, err
+		}
 
-	wgKey := types.NamespacedName{
-		Name:      wireguard.GetName(),
-		Namespace: wireguard.GetNamespace(),
-	}
-	wgSecret := &corev1.Secret{}
-	if err := r.Get(context.TODO(), wgKey, wgSecret); err != nil {
-		return nil, err
-	}
+		privateKey := []byte(key.String())
+		publicKey := []byte(key.PublicKey().String())
 
-	buf := new(bytes.Buffer)
-	spec := peerConfig{
-		Address:       peer.Spec.Address,
-		PrivateKey:    key.String(),
-		DNS:           wireguard.Spec.DNS.Address,
-		PeerPublicKey: string(wgSecret.Data["public-key"]),
-		Endpoint:      wireguard.Spec.EndpointAddress,
-		AllowedIPs:    "0.0.0.0/0, ::/0",
-	}
-	if err := tmpl.Execute(buf, spec); err != nil {
-		return nil, err
+		wgKey := types.NamespacedName{
+			Name:      wireguard.GetName(),
+			Namespace: wireguard.GetNamespace(),
+		}
+		wgSecret := &corev1.Secret{}
+		if err := r.Get(context.TODO(), wgKey, wgSecret); err != nil {
+			return nil, err
+		}
+
+		buf := new(bytes.Buffer)
+		spec := peerConfig{
+			Address:       peer.Spec.Address,
+			PrivateKey:    key.String(),
+			DNS:           wireguard.Spec.DNS.Address,
+			PeerPublicKey: string(wgSecret.Data["public-key"]),
+			Endpoint:      wireguard.Spec.EndpointAddress,
+			AllowedIPs:    "0.0.0.0/0, ::/0",
+		}
+		if err := tmpl.Execute(buf, spec); err != nil {
+			return nil, err
+		}
+
+		data = map[string][]byte{
+			"config":      buf.Bytes(),
+			"public-key":  publicKey,
+			"private-key": privateKey,
+		}
+	} else {
+		data = map[string][]byte{
+			"public-key": []byte(*peer.Spec.PublicKey),
+		}
 	}
 
 	secret := &corev1.Secret{
@@ -152,11 +168,7 @@ func (r *WireguardPeerReconciler) getSecret(
 			Name:      peer.GetName(),
 			Namespace: peer.GetNamespace(),
 		},
-		StringData: map[string]string{
-			"config":      buf.String(),
-			"public-key":  key.PublicKey().String(),
-			"private-key": key.String(),
-		},
+		Data: data,
 	}
 	return secret, nil
 }

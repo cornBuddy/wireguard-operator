@@ -14,7 +14,15 @@ type WireguardPeerSpec struct {
 	// +kubebuilder:default="192.168.254.2"
 
 	// IP address of the peer
-	Address string `json:"network,omitempty"`
+	Address string `json:"address,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=44
+	// +kubebuilder:validation:MinLength=44
+	// +kubebuilder:example:="WsFemZZdyC+ajbvOtKA7dltaNCaPOusKmkJffjMOMmg="
+
+	// Public key of the peer
+	PublicKey *string `json:"publicKey,omitempty"`
 }
 
 //+kubebuilder:object:root=true

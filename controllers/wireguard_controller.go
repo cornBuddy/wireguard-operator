@@ -243,14 +243,13 @@ PostUp = iptables --insert FORWARD --source {{ $.Address }} --destination {{ . }
 PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT
 PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT
 PostUp = iptables --table nat --append POSTROUTING --source {{ .Address }} --out-interface eth0 --jump MASQUERADE
-
-{{ range .Peers -}}
+{{ range .Peers }}
 [Peer]
 PublicKey = {{ .PublicKey }}
 AllowedIPs = {{ .Address }}/32
 Endpoint = {{ .Endpoint }}
 PersistentKeepalive = 25
-{{- end -}}`
+{{ end }}`
 
 type serverPeer struct {
 	PublicKey string
