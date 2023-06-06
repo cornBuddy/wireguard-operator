@@ -14,3 +14,6 @@ max_line_length = 150
 [Makefile]
 indent_style = tab
 indent_size = 4
+
+[api/**]
+max_line_length = 535
