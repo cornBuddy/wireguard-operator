@@ -38,6 +38,7 @@ spec:
       containers:
         - name: manager
           image: controller:latest
+          imagePullPolicy: IfNotPresent
           command:
             - /manager
           args:
