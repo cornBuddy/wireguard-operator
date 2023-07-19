@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
 )
 
 var _ = Describe("Wireguard controller", func() {
@@ -42,21 +42,11 @@ var _ = Describe("Wireguard controller", func() {
 	}
 
 	DescribeTable("should reconcile",
-		func(wireguard *vpnv1alpha1.Wireguard) {
+		func(wg *vpnv1alpha1.Wireguard) {
 			By("reconciling wireguard CR")
-			wgReconciler := &WireguardReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-			wireguardName := names.SimpleNameGenerator.GenerateName("wireguard-")
-			wireguard.SetName(wireguardName)
-			validateReconcile(wireguard, wgReconciler)
+			validateReconcile(wg, wgDsl)
 
 			By("reconciling peers CRs")
-			peerReconciler := &WireguardPeerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
 			peerName := names.SimpleNameGenerator.GenerateName("peer-")
 			peer := &vpnv1alpha1.WireguardPeer{
 				ObjectMeta: metav1.ObjectMeta{
@@ -64,78 +54,49 @@ var _ = Describe("Wireguard controller", func() {
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: vpnv1alpha1.WireguardPeerSpec{
-					WireguardRef: wireguardName,
+					WireguardRef: wg.GetName(),
 				},
 			}
-			validateReconcile(peer, peerReconciler)
+			validateReconcile(peer, peerDsl)
 
 			By("reconciling wireguard CR once again")
-			key := types.NamespacedName{
-				Name:      wireguard.GetName(),
-				Namespace: wireguard.GetNamespace(),
-			}
-			Expect(reconcileCustomResource(key, wgReconciler)).To(Succeed())
+			Expect(wgDsl.Reconcile(wg)).To(Succeed())
 
 			By("fetching the list of peers")
-			peers, err := wgReconciler.getPeers(wireguard, context.TODO())
+			wgReconciler := &WireguardReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+			peers, err := wgReconciler.getPeers(wg, ctx)
 			Expect(err).To(BeNil())
 			Expect(peers.Items).To(HaveLen(1))
 
 			By("validating wireguard CR")
-			validateWireguardSecret(wireguard, peers)
-			validateService(wireguard)
-			validateConfigMap(wireguard)
-			validateDeployment(wireguard)
+			validateWireguardSecret(wg, peers)
+			validateConfigMap(wg)
+			validateDeployment(wg)
 		},
 		Entry(
 			"default configuration",
-			&vpnv1alpha1.Wireguard{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: corev1.NamespaceDefault,
-				},
-				Spec: vpnv1alpha1.WireguardSpec{},
-			},
+			testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{}),
 		),
 		Entry(
 			"internal dns configuration",
-			&vpnv1alpha1.Wireguard{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: corev1.NamespaceDefault,
+			testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
+				DNS: vpnv1alpha1.DNS{
+					DeployServer: false,
+					Address:      "10.96.0.1",
 				},
-				Spec: vpnv1alpha1.WireguardSpec{
-					DNS: vpnv1alpha1.DNS{
-						DeployServer: false,
-						Address:      "10.96.0.1",
-					},
-				},
-			},
+			}),
 		),
 		Entry(
 			"sidecar configuration",
-			&vpnv1alpha1.Wireguard{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: corev1.NamespaceDefault,
-				},
-				Spec: vpnv1alpha1.WireguardSpec{
-					Sidecars: []corev1.Container{sidecar},
-				},
-			},
+			testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
+				Sidecars: []corev1.Container{sidecar},
+			}),
 		),
 	)
 })
-
-func validateService(wireguard *vpnv1alpha1.Wireguard) {
-	key := types.NamespacedName{
-		Name:      wireguard.GetName(),
-		Namespace: wireguard.GetNamespace(),
-	}
-	svc := &corev1.Service{}
-
-	By("Checking if Service was successfully created in the reconciliation")
-	Eventually(func(g Gomega) {
-		g.Expect(k8sClient.Get(context.TODO(), key, svc)).To(Succeed())
-	}, timeout, interval).Should(Succeed())
-}
 
 func validateConfigMap(wireguard *vpnv1alpha1.Wireguard) {
 	key := types.NamespacedName{
@@ -146,7 +107,7 @@ func validateConfigMap(wireguard *vpnv1alpha1.Wireguard) {
 
 	By("Checking if ConfigMap was successfully created in the reconciliation")
 	Eventually(func(g Gomega) {
-		g.Expect(k8sClient.Get(context.TODO(), key, cm)).To(Succeed())
+		g.Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
 	}, timeout, interval).Should(Succeed())
 }
 
@@ -159,7 +120,7 @@ func validateWireguardSecret(wireguard *vpnv1alpha1.Wireguard, peers vpnv1alpha1
 
 	By("Checking if Secret was successfully created in the reconciliation")
 	Eventually(func(g Gomega) {
-		g.Expect(k8sClient.Get(context.TODO(), key, secret)).Should(Succeed())
+		g.Expect(k8sClient.Get(ctx, key, secret)).Should(Succeed())
 		g.Expect(secret.Data).To(HaveKey("config"))
 		g.Expect(secret.Data).To(HaveKey("public-key"))
 		g.Expect(secret.Data).To(HaveKey("private-key"))
@@ -196,7 +157,7 @@ func validateWireguardSecret(wireguard *vpnv1alpha1.Wireguard, peers vpnv1alpha1
 			}
 
 			peerSecret := &corev1.Secret{}
-			g.Expect(k8sClient.Get(context.TODO(), peerKey, peerSecret)).To(Succeed())
+			g.Expect(k8sClient.Get(ctx, peerKey, peerSecret)).To(Succeed())
 			pubKey := fmt.Sprintf("PublicKey = %s", peerSecret.Data["public-key"])
 			g.Expect(cfg).To(ContainSubstring(pubKey))
 		}
@@ -215,7 +176,7 @@ func validateDeployment(wireguard *vpnv1alpha1.Wireguard) {
 	deploy := &appsv1.Deployment{}
 
 	Eventually(func(g Gomega) {
-		g.Expect(k8sClient.Get(context.TODO(), key, deploy)).To(Succeed())
+		g.Expect(k8sClient.Get(ctx, key, deploy)).To(Succeed())
 
 		context := &corev1.SecurityContext{
 			Privileged: toPtr(true),

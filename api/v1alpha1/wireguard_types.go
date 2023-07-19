@@ -44,6 +44,11 @@ type WireguardSpec struct {
 
 	// Affinity configuration
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// +kubebuilder:default="ClusterIP"
+
+	// Type of the service to be created
+	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 }
 
 type DNS struct {

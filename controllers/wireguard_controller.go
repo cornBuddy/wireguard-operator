@@ -147,6 +147,7 @@ func (r *WireguardReconciler) getService(
 			Namespace: wg.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
+			Type:     wg.Spec.ServiceType,
 			Selector: getLabels(wg.Name),
 			Ports: []corev1.ServicePort{{
 				Name:     "wireguard",

@@ -29,11 +29,7 @@ var _ = Describe("WireguardPeer controller", func() {
 			},
 			Spec: vpnv1alpha1.WireguardSpec{},
 		}
-		reconciler := &WireguardReconciler{
-			Client: k8sClient,
-			Scheme: k8sClient.Scheme(),
-		}
-		validateReconcile(wireguard, reconciler)
+		validateReconcile(wireguard, wgDsl)
 	})
 
 	AfterEach(func() {
@@ -56,11 +52,7 @@ var _ = Describe("WireguardPeer controller", func() {
 
 	DescribeTable("should reconcile",
 		func(peer *vpnv1alpha1.WireguardPeer) {
-			reconciler := &WireguardPeerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-			validateReconcile(peer, reconciler)
+			validateReconcile(peer, peerDsl)
 			validatePeerSecret(peer, wireguard)
 		},
 		Entry(

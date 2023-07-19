@@ -17,9 +17,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -32,6 +32,9 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
+	wgDsl     testdsl.Dsl
+	peerDsl   testdsl.Dsl
+	ctx       = context.TODO()
 )
 
 type Reconciler interface {
@@ -68,6 +71,20 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	peerDsl = testdsl.Dsl{
+		K8sClient: k8sClient,
+		Reconciler: &WireguardPeerReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		},
+	}
+	wgDsl = testdsl.Dsl{
+		K8sClient: k8sClient,
+		Reconciler: &WireguardReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		},
+	}
 })
 
 var _ = AfterSuite(func() {
@@ -78,7 +95,7 @@ var _ = AfterSuite(func() {
 
 // Validates reconcilation of custom resource. Creates custom resource as a side
 // effect
-func validateReconcile(object client.Object, reconciler Reconciler) {
+func validateReconcile(object client.Object, dsl testdsl.Dsl) {
 	key := types.NamespacedName{
 		Name:      object.GetName(),
 		Namespace: object.GetNamespace(),
@@ -92,22 +109,6 @@ func validateReconcile(object client.Object, reconciler Reconciler) {
 		g.Expect(k8sClient.Get(context.TODO(), key, object)).To(Succeed())
 
 		By("Reconciling the custom resource created")
-		g.Expect(reconcileCustomResource(key, reconciler)).To(Succeed())
+		g.Expect(dsl.Reconcile(object)).To(Succeed())
 	}, timeout, interval).Should(Succeed())
-}
-
-// Performs full reconcildation loop for wireguard
-func reconcileCustomResource(key types.NamespacedName, reconciler Reconciler) error {
-	// Reconcile resource multiple times to ensure that all resources are
-	// created
-	const reconcilationLoops = 5
-	for i := 0; i < reconcilationLoops; i++ {
-		req := reconcile.Request{
-			NamespacedName: key,
-		}
-		if _, err := reconciler.Reconcile(context.TODO(), req); err != nil {
-			return err
-		}
-	}
-	return nil
 }

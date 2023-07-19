@@ -909,6 +909,10 @@ spec:
                 maximum: 3
                 minimum: 1
                 type: integer
+              serviceType:
+                default: ClusterIP
+                description: Type of the service to be created
+                type: string
               sidecars:
                 description: Sidecar containers to run
                 items:
