@@ -12,13 +12,15 @@ import (
 )
 
 var _ = Describe("Wireguard#Service", func() {
-	var wireguard *vpnv1alpha1.Wireguard
-	svc := &corev1.Service{}
+	serviceTypeTestCases := []TableEntry{
+		Entry("", corev1.ServiceTypeClusterIP),
+		Entry("", corev1.ServiceTypeLoadBalancer),
+	}
 
-	BeforeEach(func() {
+	DescribeTable(".spec.type", func(st corev1.ServiceType) {
 		By("provisioning wireguard CRD")
-		wireguard = testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
-			ServiceType: corev1.ServiceTypeLoadBalancer,
+		wireguard := testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
+			ServiceType: st,
 		})
 		Eventually(func() error {
 			return k8sClient.Create(ctx, wireguard)
@@ -30,11 +32,12 @@ var _ = Describe("Wireguard#Service", func() {
 			Name:      wireguard.GetName(),
 			Namespace: wireguard.GetNamespace(),
 		}
+		svc := &corev1.Service{}
 		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())
 		Expect(svc).ToNot(BeNil())
-	})
 
-	It("should have valid service type", func() {
-		Expect(wireguard.Spec.ServiceType).To(Equal(svc.Spec.Type))
-	})
+		By("validating")
+		Expect(wireguard.Spec.ServiceType).To(Equal(st))
+		Expect(svc.Spec.Type).To(Equal(st))
+	}, serviceTypeTestCases)
 })
