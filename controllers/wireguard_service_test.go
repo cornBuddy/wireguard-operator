@@ -13,8 +13,8 @@ import (
 
 var _ = Describe("Wireguard#Service", func() {
 	serviceTypeTestCases := []TableEntry{
-		Entry("", corev1.ServiceTypeClusterIP),
-		Entry("", corev1.ServiceTypeLoadBalancer),
+		Entry(nil, corev1.ServiceTypeClusterIP),
+		Entry(nil, corev1.ServiceTypeLoadBalancer),
 	}
 
 	DescribeTable(".spec.type", func(st corev1.ServiceType) {
