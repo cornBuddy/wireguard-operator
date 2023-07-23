@@ -909,6 +909,11 @@ spec:
                 maximum: 3
                 minimum: 1
                 type: integer
+              serviceAnnotations:
+                additionalProperties:
+                  type: string
+                description: Annotations for the service resource
+                type: object
               serviceType:
                 default: ClusterIP
                 description: Type of the service to be created

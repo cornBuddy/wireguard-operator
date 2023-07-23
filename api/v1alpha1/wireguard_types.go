@@ -49,6 +49,9 @@ type WireguardSpec struct {
 
 	// Type of the service to be created
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
+
+	// Annotations for the service resource
+	ServiceAnnotations map[string]string `json:"serviceAnnotations,omitempty"`
 }
 
 type DNS struct {

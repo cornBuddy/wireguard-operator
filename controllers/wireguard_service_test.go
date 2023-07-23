@@ -23,6 +23,20 @@ var _ = Describe("Wireguard#Service", func() {
 			vpnv1alpha1.WireguardSpec{ServiceType: corev1.ServiceTypeLoadBalancer},
 		),
 	}
+	annotationsTestCases := []TableEntry{
+		Entry(
+			"when no annotations provided",
+			vpnv1alpha1.WireguardSpec{},
+		),
+		Entry(
+			"when some annotations provided",
+			vpnv1alpha1.WireguardSpec{
+				ServiceAnnotations: map[string]string{
+					"top": "lel",
+				},
+			},
+		),
+	}
 
 	DescribeTable("has valid type", func(st corev1.ServiceType) {
 		By("provisioning wireguard CRD")
@@ -41,7 +55,6 @@ var _ = Describe("Wireguard#Service", func() {
 		}
 		svc := &corev1.Service{}
 		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())
-		Expect(svc).ToNot(BeNil())
 
 		By("validating")
 		Expect(wireguard.Spec.ServiceType).To(Equal(st))
@@ -87,4 +100,27 @@ var _ = Describe("Wireguard#Service", func() {
 		Expect(svc1.Spec.Type).To(Equal(spec1.ServiceType))
 		Expect(svc2.Spec.Type).To(Equal(spec2.ServiceType))
 	}, updatableTestCases)
+
+	DescribeTable("should have configured annotations", func(spec vpnv1alpha1.WireguardSpec) {
+		wg := testdsl.GenerateWireguard(spec)
+		Eventually(func() error {
+			return k8sClient.Create(ctx, wg)
+		}, timeout, interval).Should(Succeed())
+		Expect(wgDsl.Reconcile(wg)).To(Succeed())
+
+		By("fetching service from cluster")
+		key := types.NamespacedName{
+			Name:      wg.GetName(),
+			Namespace: wg.GetNamespace(),
+		}
+		svc := &corev1.Service{}
+		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())
+
+		By("checking that annotations exists")
+		actual := svc.ObjectMeta.Annotations
+		Expect(actual).To(HaveLen(len(spec.ServiceAnnotations) + 1))
+		for key, value := range spec.ServiceAnnotations {
+			Expect(actual).To(HaveKeyWithValue(key, value))
+		}
+	}, annotationsTestCases)
 })

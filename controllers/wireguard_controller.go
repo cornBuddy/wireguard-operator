@@ -138,13 +138,12 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *WireguardReconciler) getService(
-	wg *vpnv1alpha1.Wireguard) *corev1.Service {
-
+func (r *WireguardReconciler) getService(wg *vpnv1alpha1.Wireguard) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wg.Name,
-			Namespace: wg.Namespace,
+			Name:        wg.Name,
+			Namespace:   wg.Namespace,
+			Annotations: wg.Spec.ServiceAnnotations,
 		},
 		Spec: corev1.ServiceSpec{
 			Type:     wg.Spec.ServiceType,
