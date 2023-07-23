@@ -12,12 +12,19 @@ import (
 )
 
 var _ = Describe("Wireguard#Service", func() {
-	serviceTypeTestCases := []TableEntry{
+	typeTestCases := []TableEntry{
 		Entry(nil, corev1.ServiceTypeClusterIP),
 		Entry(nil, corev1.ServiceTypeLoadBalancer),
 	}
+	updatableTestCases := []TableEntry{
+		Entry(
+			"can update .spec.type",
+			vpnv1alpha1.WireguardSpec{ServiceType: corev1.ServiceTypeClusterIP},
+			vpnv1alpha1.WireguardSpec{ServiceType: corev1.ServiceTypeLoadBalancer},
+		),
+	}
 
-	DescribeTable(".spec.type", func(st corev1.ServiceType) {
+	DescribeTable("has valid type", func(st corev1.ServiceType) {
 		By("provisioning wireguard CRD")
 		wireguard := testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
 			ServiceType: st,
@@ -39,5 +46,45 @@ var _ = Describe("Wireguard#Service", func() {
 		By("validating")
 		Expect(wireguard.Spec.ServiceType).To(Equal(st))
 		Expect(svc.Spec.Type).To(Equal(st))
-	}, serviceTypeTestCases)
+	}, typeTestCases)
+
+	DescribeTable("is updatable", func(spec1, spec2 vpnv1alpha1.WireguardSpec) {
+		By("setting prerequisites")
+		wg1 := testdsl.GenerateWireguard(spec1)
+		key := types.NamespacedName{
+			Name:      wg1.GetName(),
+			Namespace: wg1.GetNamespace(),
+		}
+		svc1 := &corev1.Service{}
+		svc2 := &corev1.Service{}
+
+		By("creating initial resource")
+		Eventually(func() error {
+			return k8sClient.Create(ctx, wg1)
+		}, timeout, interval).Should(Succeed())
+		Expect(wgDsl.Reconcile(wg1)).To(Succeed())
+
+		By("fetching original service")
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, svc1)
+		}, timeout, interval).Should(Succeed())
+
+		By("updating resource")
+		wg2 := &vpnv1alpha1.Wireguard{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, wg2)
+		}, timeout, interval).Should(Succeed())
+		wg2.Spec = spec2
+		Eventually(func() error {
+			return k8sClient.Update(ctx, wg2)
+		}, timeout, interval).Should(Succeed())
+		Expect(wgDsl.Reconcile(wg2)).To(Succeed())
+
+		By("fetching updated service")
+		Expect(k8sClient.Get(ctx, key, svc2)).To(Succeed())
+
+		By("validating")
+		Expect(svc1.Spec.Type).To(Equal(spec1.ServiceType))
+		Expect(svc2.Spec.Type).To(Equal(spec2.ServiceType))
+	}, updatableTestCases)
 })

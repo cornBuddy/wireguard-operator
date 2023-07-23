@@ -7,6 +7,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/cisco-open/k8s-objectmatcher/patch"
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,7 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-	"github.com/cisco-open/k8s-objectmatcher/patch"
 )
 
 const (
@@ -68,14 +68,14 @@ func (r *WireguardReconciler) Reconcile(
 	log.Info("Successfully read wireguard from cluster, moving on...")
 
 	svc := r.getService(wireguard)
-	if created, err := r.createIfNotExists(wireguard, ctx, svc); err != nil {
+	if createdOrUpdated, err := r.createOrUpdateService(wireguard, ctx, svc); err != nil {
 		log.Error(err, "Cannot create service")
 		return ctrl.Result{}, err
-	} else if created {
-		log.Info("Service created successfully")
+	} else if createdOrUpdated {
+		log.Info("Service reconciled successfully")
 		return ctrl.Result{Requeue: true}, nil
 	}
-	log.Info("Service is created already, moving on...")
+	log.Info("Service is up to date already, moving on...")
 
 	cm, err := r.getConfigMap(wireguard)
 	if err != nil {
@@ -101,14 +101,14 @@ func (r *WireguardReconciler) Reconcile(
 		log.Error(err, "Cannot generate secret")
 		return ctrl.Result{}, err
 	}
-	if createdOrUpdated, err := r.createOrUpdate(wireguard, ctx, secret); err != nil {
+	if createdOrUpdated, err := r.createOrUpdateSecret(wireguard, ctx, secret); err != nil {
 		log.Error(err, "Cannot create secret")
 		return ctrl.Result{}, err
 	} else if createdOrUpdated {
-		log.Info("Secret created or updated successfully")
+		log.Info("Secret reconciled successfully")
 		return ctrl.Result{Requeue: true}, nil
 	}
-	log.Info("Secret is created already, moving on...")
+	log.Info("Secret is up to date already, moving on...")
 
 	deploy, err := r.getDeployment(wireguard)
 	if err != nil {
@@ -546,7 +546,66 @@ func (r *WireguardReconciler) createIfNotExists(
 }
 
 // creates or updates resource. returns true when created or updated
-func (r *WireguardReconciler) createOrUpdate(
+func (r *WireguardReconciler) createOrUpdateService(
+	wg *vpnv1alpha1.Wireguard, ctx context.Context, desired *corev1.Service) (bool, error) {
+
+	if err := ctrl.SetControllerReference(wg, desired, r.Scheme); err != nil {
+		return false, err
+	}
+
+	// check if resource already exists
+	key := types.NamespacedName{
+		Name:      wg.Name,
+		Namespace: wg.Namespace,
+	}
+	current := &corev1.Service{}
+	err := r.Get(ctx, key, current)
+	unexpectedError := err != nil && !apierrors.IsNotFound(err)
+	if unexpectedError {
+		return false, err
+	}
+
+	// annotate newly created resource
+	annotator := patch.NewAnnotator("vpn.ahova.com/last-applied")
+	if err := annotator.SetLastAppliedAnnotation(desired); err != nil {
+		return false, err
+	}
+
+	// creating new resource
+	objectNotExists := apierrors.IsNotFound(err)
+	if objectNotExists {
+		if err := r.Create(ctx, desired); err != nil {
+			return false, err
+		}
+
+		// resource is created, get back to reconcilation
+		return true, nil
+	}
+
+	patchMaker := patch.DefaultPatchMaker
+	opts := []patch.CalculateOption{
+		patch.IgnoreField("metadata"),
+	}
+	patchResult, err := patchMaker.Calculate(current, desired, opts...)
+	if err != nil {
+		return false, err
+	}
+
+	// nothing to update, get back to reconcilation
+	if patchResult.IsEmpty() {
+		return false, nil
+	}
+
+	if err := r.Update(ctx, desired); err != nil {
+		return false, err
+	}
+
+	// resource is updated, get back to reconcilation
+	return true, nil
+}
+
+// creates or updates resource. returns true when created or updated
+func (r *WireguardReconciler) createOrUpdateSecret(
 	wg *vpnv1alpha1.Wireguard, ctx context.Context, desired *corev1.Secret) (bool, error) {
 
 	if err := ctrl.SetControllerReference(wg, desired, r.Scheme); err != nil {
