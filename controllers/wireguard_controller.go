@@ -78,6 +78,7 @@ func (r *WireguardReconciler) Reconcile(
 	log.Info("Refetching service from the cluster...")
 	if err := r.Get(ctx, req.NamespacedName, svc); err != nil {
 		log.Error(err, "Cannot refetch service from the cluster")
+		return ctrl.Result{}, err
 	}
 	log.Info("Service is up to date already, moving on...")
 
