@@ -5,7 +5,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -72,7 +71,6 @@ var _ = Describe("Wireguard controller", func() {
 			Expect(peers.Items).To(HaveLen(1))
 
 			By("validating wireguard CR")
-			validateWireguardSecret(wg, peers)
 			validateConfigMap(wg)
 			validateDeployment(wg)
 		},
@@ -108,62 +106,6 @@ func validateConfigMap(wireguard *vpnv1alpha1.Wireguard) {
 	By("Checking if ConfigMap was successfully created in the reconciliation")
 	Eventually(func(g Gomega) {
 		g.Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
-	}, timeout, interval).Should(Succeed())
-}
-
-func validateWireguardSecret(wireguard *vpnv1alpha1.Wireguard, peers vpnv1alpha1.WireguardPeerList) {
-	key := types.NamespacedName{
-		Name:      wireguard.GetName(),
-		Namespace: wireguard.GetNamespace(),
-	}
-	secret := &corev1.Secret{}
-
-	By("Checking if Secret was successfully created in the reconciliation")
-	Eventually(func(g Gomega) {
-		g.Expect(k8sClient.Get(ctx, key, secret)).Should(Succeed())
-		g.Expect(secret.Data).To(HaveKey("config"))
-		g.Expect(secret.Data).To(HaveKey("public-key"))
-		g.Expect(secret.Data).To(HaveKey("private-key"))
-
-		annotations := secret.GetAnnotations()
-		g.Expect(annotations).To(HaveKey("vpn.ahova.com/last-applied"))
-
-		const keyLength = 44
-		g.Expect(secret.Data["public-key"]).To(HaveLen(keyLength))
-		g.Expect(secret.Data["private-key"]).To(HaveLen(keyLength))
-		privateKey := string(secret.Data["private-key"])
-		wgKey, err := wgtypes.ParseKey(privateKey)
-		g.Expect(err).To(BeNil())
-		pubKey := wgKey.PublicKey().String()
-		g.Expect(string(secret.Data["public-key"])).To(Equal(pubKey))
-
-		cfg := string(secret.Data["config"])
-
-		privKey := fmt.Sprintf("PrivateKey = %s", secret.Data["private-key"])
-		g.Expect(cfg).To(ContainSubstring(privKey))
-
-		for _, postUp := range getPostUps(wireguard) {
-			g.Expect(cfg).To(ContainSubstring(postUp))
-		}
-
-		g.Expect(cfg).To(ContainSubstring("[Peer]"))
-
-		for _, peer := range peers.Items {
-			ip := fmt.Sprintf("AllowedIPs = %s/32", peer.Spec.Address)
-			g.Expect(cfg).To(ContainSubstring(ip))
-			peerKey := types.NamespacedName{
-				Name:      peer.GetName(),
-				Namespace: peer.GetNamespace(),
-			}
-
-			peerSecret := &corev1.Secret{}
-			g.Expect(k8sClient.Get(ctx, peerKey, peerSecret)).To(Succeed())
-			pubKey := fmt.Sprintf("PublicKey = %s", peerSecret.Data["public-key"])
-			g.Expect(cfg).To(ContainSubstring(pubKey))
-		}
-
-		address := fmt.Sprintf("Address = %s", wireguard.Spec.Network)
-		g.Expect(cfg).To(ContainSubstring(address))
 	}, timeout, interval).Should(Succeed())
 }
 

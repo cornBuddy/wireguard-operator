@@ -75,6 +75,10 @@ func (r *WireguardReconciler) Reconcile(
 		log.Info("Service reconciled successfully")
 		return ctrl.Result{Requeue: true}, nil
 	}
+	log.Info("Refetching service from the cluster...")
+	if err := r.Get(ctx, req.NamespacedName, svc); err != nil {
+		log.Error(err, "Cannot refetch service from the cluster")
+	}
 	log.Info("Service is up to date already, moving on...")
 
 	cm, err := r.getConfigMap(wireguard)
@@ -249,7 +253,7 @@ PublicKey = {{ .PublicKey }}
 AllowedIPs = {{ .Address }}/32
 Endpoint = {{ .Endpoint }}
 PersistentKeepalive = 25
-{{ end }}`
+{{- end }}`
 
 type serverPeer struct {
 	PublicKey string

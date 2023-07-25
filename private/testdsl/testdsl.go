@@ -34,6 +34,17 @@ func GenerateWireguard(spec vpnv1alpha1.WireguardSpec) *vpnv1alpha1.Wireguard {
 	}
 }
 
+func GeneratePeer(spec vpnv1alpha1.WireguardPeerSpec) *vpnv1alpha1.WireguardPeer {
+	name := names.SimpleNameGenerator.GenerateName("peer-")
+	return &vpnv1alpha1.WireguardPeer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: corev1.NamespaceDefault,
+		},
+		Spec: spec,
+	}
+}
+
 func (dsl Dsl) Reconcile(object client.Object) error {
 	// Reconcile resource multiple times to ensure that all resources are
 	// created
