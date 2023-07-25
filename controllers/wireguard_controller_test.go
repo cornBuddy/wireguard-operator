@@ -137,6 +137,9 @@ func validateDeployment(wireguard *vpnv1alpha1.Wireguard) {
 		wantSysctls := []corev1.Sysctl{{
 			Name:  "net.ipv4.ip_forward",
 			Value: "1",
+		}, {
+			Name:  "net.ipv4.conf.all.src_valid_mark",
+			Value: "1",
 		}}
 		g.Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
 
