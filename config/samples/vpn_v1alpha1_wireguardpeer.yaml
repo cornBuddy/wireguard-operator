@@ -2,17 +2,8 @@
 apiVersion: vpn.ahova.com/v1alpha1
 kind: WireguardPeer
 metadata:
-  name: peer-default
+  name: admin-peer
 spec:
-  wireguardRef: wireguard
-  address: 192.168.254.2
-
----
-apiVersion: vpn.ahova.com/v1alpha1
-kind: WireguardPeer
-metadata:
-  name: peer-public-key
-spec:
-  wireguardRef: wireguard
-  address: 192.168.254.3
-  publicKey: WsFemZZdyC+ajbvOtKA7dltaNCaPOusKmkJffjMOMmg=
+  wireguardRef: admin
+  address: 192.168.254.254
+  publicKey: "UeQjUy+qioNWorT9WPwWC4rt5elyc9osvwE7U0+/BSE="
