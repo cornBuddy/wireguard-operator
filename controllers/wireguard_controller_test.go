@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -173,32 +171,4 @@ func validateDeployment(wireguard *vpnv1alpha1.Wireguard) {
 		g.Expect(len(containers)).To(Equal(baseLen + sidecarsLen))
 		g.Expect(len(volumes)).To(Equal(baseLen))
 	}, timeout, interval).Should(Succeed())
-}
-
-func getPostUps(wireguard *vpnv1alpha1.Wireguard) []string {
-	masquerade := fmt.Sprintf(
-		"PostUp = iptables --table nat --append POSTROUTING --source %s --out-interface eth0 --jump MASQUERADE",
-		wireguard.Spec.Network,
-	)
-	mandatoryPostUps := []string{
-		"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
-		"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
-		masquerade,
-	}
-	hardeningPostUps := getHardeningPostUps(wireguard)
-	postUps := append(mandatoryPostUps, hardeningPostUps...)
-	return postUps
-}
-
-func getHardeningPostUps(wireguard *vpnv1alpha1.Wireguard) []string {
-	var postUps []string
-	for _, dest := range wireguard.Spec.DropConnectionsTo {
-		postUp := fmt.Sprintf(
-			"PostUp = iptables --insert FORWARD --source %s --destination %s --jump DROP",
-			wireguard.Spec.Network,
-			dest,
-		)
-		postUps = append(postUps, postUp)
-	}
-	return postUps
 }
