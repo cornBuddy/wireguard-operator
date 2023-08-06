@@ -44,7 +44,7 @@ var _ = Describe("Wireguard#Secret", func() {
 		),
 		Entry(
 			nil,
-			"PostUp = iptables --table nat --append POSTROUTING --source 192.168.254.1/24 --out-interface eth0 --jump MASQUERADE",
+			"PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
 		),
 	}
 	peers := []TableEntry{
