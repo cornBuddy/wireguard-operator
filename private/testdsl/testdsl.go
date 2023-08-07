@@ -16,6 +16,7 @@ import (
 
 type Reconciler interface {
 	Reconcile(context.Context, ctrl.Request) (ctrl.Result, error)
+	Status() client.SubResourceWriter
 }
 
 type Dsl struct {
@@ -48,7 +49,7 @@ func GeneratePeer(spec vpnv1alpha1.WireguardPeerSpec) *vpnv1alpha1.WireguardPeer
 func (dsl Dsl) Reconcile(object client.Object) error {
 	// Reconcile resource multiple times to ensure that all resources are
 	// created
-	const reconcilationLoops = 5
+	const reconcilationLoops = 10
 	key := types.NamespacedName{
 		Name:      object.GetName(),
 		Namespace: object.GetNamespace(),
@@ -59,6 +60,18 @@ func (dsl Dsl) Reconcile(object client.Object) error {
 		if _, err := dsl.Reconciler.Reconcile(ctx, req); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (dsl Dsl) Apply(ctx context.Context, object client.Object) error {
+	if err := dsl.K8sClient.Create(ctx, object); err != nil {
+		return err
+	}
+
+	if err := dsl.Reconcile(object); err != nil {
+		return err
 	}
 
 	return nil

@@ -14,10 +14,8 @@ type WireguardSpec struct {
 	// Replicas defines the number of Wireguard instances
 	Replicas int32 `json:"replicas,omitempty"`
 
-	// +kubebuilder:default="localhost"
-
 	// Public address to the wireguard network
-	EndpointAddress string `json:"endpointAddress,omitempty"`
+	EndpointAddress *string `json:"endpointAddress,omitempty"`
 
 	// +kubebuilder:default="0.0.0.0/0, ::/0"
 

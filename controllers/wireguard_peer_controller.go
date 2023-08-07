@@ -3,10 +3,11 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"text/template"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,12 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-)
-
-// Definitions to manage status conditions
-const (
-	// typeAvailable represents the status of the Deployment reconciliation
-	typeAvailable = "Available"
+	"github.com/ahova-vpn/wireguard-operator/private/dsl"
 )
 
 // WireguardPeerReconciler reconciles a Wireguard object
@@ -64,7 +60,28 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	log.Info("Retrieved parent wireguard resource, moving on...")
 
-	secret, err := r.getSecret(peer, wireguard)
+	wgService := &v1.Service{}
+	if err := r.Get(ctx, wgKey, wgService); err != nil {
+		log.Info("Cannot fetch wireguard service, skipping the loop...")
+		return ctrl.Result{Requeue: true}, nil
+	}
+	log.Info("Retrieved wireguard service, moving on...")
+
+	peerDsl := dsl.Peer{
+		PeerSpec:      peer.Spec,
+		WireguardSpec: wireguard.Spec,
+	}
+	endpoint, err := peerDsl.ExtractEndpoint(*wgService)
+	if err == dsl.ErrPublicIpNotSet {
+		log.Info("Public ip not yet set, skipping the loop...")
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		log.Error(err, "Cannot extract endpoint")
+		return ctrl.Result{}, err
+	}
+	log.Info("Peer endpoint is calculated, moving on...", "Endpoint", endpoint)
+
+	secret, err := r.getSecret(peer, wireguard, endpoint)
 	if err != nil {
 		log.Error(err, "Cannot generate secret")
 		return ctrl.Result{}, err
@@ -84,7 +101,7 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *WireguardPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&vpnv1alpha1.WireguardPeer{}).
-		Owns(&corev1.Secret{}).
+		Owns(&v1.Secret{}).
 		Complete(r)
 }
 
@@ -113,7 +130,7 @@ Endpoint = {{ .Endpoint }}
 AllowedIPs = {{ .AllowedIPs }}`
 
 func (r *WireguardPeerReconciler) getSecret(
-	peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.Wireguard) (*corev1.Secret, error) {
+	peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.Wireguard, endpoint string) (*v1.Secret, error) {
 
 	var data map[string][]byte
 	if peer.Spec.PublicKey == nil {
@@ -134,20 +151,25 @@ func (r *WireguardPeerReconciler) getSecret(
 			Name:      wireguard.GetName(),
 			Namespace: wireguard.GetNamespace(),
 		}
-		wgSecret := &corev1.Secret{}
+		wgSecret := &v1.Secret{}
 		if err := r.Get(context.TODO(), wgKey, wgSecret); err != nil {
 			return nil, err
 		}
 
-		buf := new(bytes.Buffer)
+		wgSvc := &v1.Service{}
+		if err := r.Get(context.TODO(), wgKey, wgSvc); err != nil {
+			return nil, err
+		}
+
 		spec := peerConfig{
 			Address:       peer.Spec.Address,
 			PrivateKey:    key.String(),
 			DNS:           wireguard.Spec.DNS.Address,
 			PeerPublicKey: string(wgSecret.Data["public-key"]),
-			Endpoint:      wireguard.Spec.EndpointAddress,
+			Endpoint:      fmt.Sprintf("%s:%d", endpoint, wireguardPort),
 			AllowedIPs:    "0.0.0.0/0, ::/0",
 		}
+		buf := new(bytes.Buffer)
 		if err := tmpl.Execute(buf, spec); err != nil {
 			return nil, err
 		}
@@ -163,7 +185,7 @@ func (r *WireguardPeerReconciler) getSecret(
 		}
 	}
 
-	secret := &corev1.Secret{
+	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      peer.GetName(),
 			Namespace: peer.GetNamespace(),

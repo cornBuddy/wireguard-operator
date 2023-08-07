@@ -5,9 +5,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
@@ -166,5 +167,8 @@ var _ = Describe("Wireguard#Secret", func() {
 
 		By("validating PersistentKeepalive configuration")
 		Expect(config).To(ContainSubstring("PersistentKeepalive = 25"))
+
+		By("validating SaveConfig configuration")
+		Expect(config).To(ContainSubstring("SaveConfig = true"))
 	}, peers)
 })

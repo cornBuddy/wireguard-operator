@@ -6,4 +6,3 @@ metadata:
 spec:
   wireguardRef: admin
   address: 192.168.254.254
-  publicKey: "UeQjUy+qioNWorT9WPwWC4rt5elyc9osvwE7U0+/BSE="

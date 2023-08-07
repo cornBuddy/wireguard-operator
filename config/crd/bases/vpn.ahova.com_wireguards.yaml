@@ -895,7 +895,6 @@ spec:
                   type: string
                 type: array
               endpointAddress:
-                default: localhost
                 description: Public address to the wireguard network
                 type: string
               network:

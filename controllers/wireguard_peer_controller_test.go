@@ -127,9 +127,6 @@ func validatePeerSecret(peer *vpnv1alpha1.WireguardPeer, wireguard *vpnv1alpha1.
 			pubKeyConfig := fmt.Sprintf("PublicKey = %s", wgSecret.Data["public-key"])
 			g.Expect(cfg).To(ContainSubstring(pubKeyConfig))
 
-			ep := fmt.Sprintf("Endpoint = %s", wireguard.Spec.EndpointAddress)
-			g.Expect(cfg).To(ContainSubstring(ep))
-
 			ips := "AllowedIPs = 0.0.0.0/0, ::/0"
 			g.Expect(cfg).To(ContainSubstring(ips))
 		} else {
