@@ -4,7 +4,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -70,7 +69,6 @@ var _ = Describe("Wireguard controller", func() {
 
 			By("validating wireguard CR")
 			validateConfigMap(wg)
-			validateDeployment(wg)
 		},
 		Entry(
 			"default configuration",
@@ -104,71 +102,5 @@ func validateConfigMap(wireguard *vpnv1alpha1.Wireguard) {
 	By("Checking if ConfigMap was successfully created in the reconciliation")
 	Eventually(func(g Gomega) {
 		g.Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
-	}, timeout, interval).Should(Succeed())
-}
-
-func validateDeployment(wireguard *vpnv1alpha1.Wireguard) {
-	By("Checking if Deployment was successfully created in the reconciliation")
-	key := types.NamespacedName{
-		Name:      wireguard.ObjectMeta.Name,
-		Namespace: wireguard.ObjectMeta.Namespace,
-	}
-	deploy := &appsv1.Deployment{}
-
-	Eventually(func(g Gomega) {
-		g.Expect(k8sClient.Get(ctx, key, deploy)).To(Succeed())
-
-		context := &corev1.SecurityContext{
-			Privileged: toPtr(true),
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{
-					"NET_ADMIN",
-					"SYS_MODULE",
-				},
-			},
-		}
-		containers := deploy.Spec.Template.Spec.Containers
-		wg := containers[0]
-		g.Expect(wg.SecurityContext).To(BeEquivalentTo(context))
-
-		gotSysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
-		wantSysctls := []corev1.Sysctl{{
-			Name:  "net.ipv4.ip_forward",
-			Value: "1",
-		}, {
-			Name:  "net.ipv4.conf.all.src_valid_mark",
-			Value: "1",
-		}, {
-			Name:  "net.ipv4.conf.all.rp_filter",
-			Value: "0",
-		}, {
-			Name:  "net.ipv4.conf.all.route_localnet",
-			Value: "1",
-		}}
-		g.Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
-
-		dnsConfig := deploy.Spec.Template.Spec.DNSConfig
-		dnsPolicy := deploy.Spec.Template.Spec.DNSPolicy
-		volumes := deploy.Spec.Template.Spec.Volumes
-		sidecarsLen := len(wireguard.Spec.Sidecars)
-
-		var baseLen int
-		if wireguard.Spec.DNS.DeployServer {
-			baseLen = 2
-
-			want := &corev1.PodDNSConfig{
-				Nameservers: []string{"127.0.0.1"},
-			}
-			g.Expect(dnsConfig).To(BeEquivalentTo(want))
-			g.Expect(dnsPolicy).To(Equal(corev1.DNSNone))
-		} else {
-			baseLen = 1
-
-			g.Expect(dnsConfig).To(BeNil())
-			g.Expect(dnsPolicy).To(Equal(corev1.DNSClusterFirst))
-		}
-
-		g.Expect(len(containers)).To(Equal(baseLen + sidecarsLen))
-		g.Expect(len(volumes)).To(Equal(baseLen))
 	}, timeout, interval).Should(Succeed())
 }

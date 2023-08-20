@@ -169,6 +169,6 @@ var _ = Describe("Wireguard#Secret", func() {
 		Expect(config).To(ContainSubstring("PersistentKeepalive = 25"))
 
 		By("validating SaveConfig configuration")
-		Expect(config).To(ContainSubstring("SaveConfig = true"))
+		Expect(config).To(ContainSubstring("SaveConfig = false"))
 	}, peers)
 })

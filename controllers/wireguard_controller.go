@@ -248,7 +248,7 @@ PostUp = iptables --insert FORWARD --source {{ $.Address }} --destination {{ . }
 PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT
 PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT
 PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-SaveConfig = true
+SaveConfig = false
 {{ range .Peers }}
 [Peer]
 PublicKey = {{ .PublicKey }}
