@@ -11,70 +11,38 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
 )
 
-var _ = Describe("Wireguard#Secret", func() {
-	var wg *vpnv1alpha1.Wireguard
+var _ = Describe("Wireguard#Secret defaults", func() {
+	var wg v1alpha1.Wireguard
+	var wgKey types.NamespacedName
 	secret := &v1.Secret{}
-	postUps := []TableEntry{
-		Entry(
-			nil,
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 192.168.0.0/16 --jump DROP",
-		),
-		Entry(
-			nil,
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 172.16.0.0/12 --jump DROP",
-		),
-		Entry(
-			nil,
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 10.0.0.0/8 --jump DROP",
-		),
-		Entry(
-			nil,
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 169.254.169.254/32 --jump DROP",
-		),
-		Entry(
-			nil,
-			"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
-		),
-		Entry(
-			nil,
-			"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
-		),
-		Entry(
-			nil,
-			"PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
-		),
-	}
-	peers := []TableEntry{
-		Entry(
-			"when peer is default",
-			testdsl.GeneratePeer(vpnv1alpha1.WireguardPeerSpec{}),
-		),
-	}
 
 	BeforeEach(func() {
 		By("creating wireguard CRD")
-		wg = testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{})
+		wg = testdsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{},
+			v1alpha1.WireguardStatus{},
+		)
 		Eventually(func() error {
-			return k8sClient.Create(ctx, wg)
+			return k8sClient.Create(ctx, &wg)
 		}, timeout, interval).Should(Succeed())
-		Expect(wgDsl.Reconcile(wg)).To(Succeed())
+		Expect(wgDsl.Reconcile(&wg)).To(Succeed())
 
 		By("retrieving secret from cluster")
-		key := types.NamespacedName{
+		wgKey = types.NamespacedName{
 			Name:      wg.GetName(),
 			Namespace: wg.GetNamespace(),
 		}
-		Expect(k8sClient.Get(ctx, key, secret)).To(Succeed())
+		Expect(k8sClient.Get(ctx, wgKey, secret)).To(Succeed())
 	})
 
 	AfterEach(func() {
 		By("deleting wireguard CRD")
 		Eventually(func() error {
-			return k8sClient.Delete(ctx, wg)
+			return k8sClient.Delete(ctx, &wg)
 		}, timeout, interval).Should(Succeed())
 	})
 
@@ -114,21 +82,83 @@ var _ = Describe("Wireguard#Secret", func() {
 		Expect(config).To(ContainSubstring("ListenPort = 51820"))
 	})
 
+	It("should not regenerate creds", func() {
+		By("simulating reconcilation loop cycle for wireguard CRD")
+		Expect(wgDsl.Reconcile(&wg)).To(Succeed())
+
+		By("refetching the secret")
+		gotSecret := &v1.Secret{}
+		Expect(k8sClient.Get(ctx, wgKey, gotSecret)).To(Succeed())
+
+		By("ensuring that were not deleted")
+		Expect(gotSecret.Data).To(HaveKey("public-key"))
+		Expect(gotSecret.Data).To(HaveKey("private-key"))
+
+		By("validating public key")
+		gotPubKey := gotSecret.Data["public-key"]
+		wantPubKey := secret.Data["public-key"]
+		Expect(wantPubKey).To(Equal(gotPubKey))
+
+		By("validating private key")
+		gotPrivKey := gotSecret.Data["private-key"]
+		wantPrivKey := secret.Data["private-key"]
+		Expect(gotPrivKey).To(Equal(wantPrivKey))
+	})
+
+	postUps := []TableEntry{
+		Entry(
+			nil,
+			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 192.168.0.0/16 --jump DROP",
+		),
+		Entry(
+			nil,
+			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 172.16.0.0/12 --jump DROP",
+		),
+		Entry(
+			nil,
+			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 10.0.0.0/8 --jump DROP",
+		),
+		Entry(
+			nil,
+			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 169.254.169.254/32 --jump DROP",
+		),
+		Entry(
+			nil,
+			"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
+		),
+		Entry(
+			nil,
+			"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
+		),
+		Entry(
+			nil,
+			"PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
+		),
+	}
 	DescribeTable("should have required PostUps", func(postUp string) {
 		config := string(secret.Data["config"])
 		Expect(config).To(ContainSubstring(postUp))
 	}, postUps)
 
-	DescribeTable("has valid [Peer] section", func(peer *vpnv1alpha1.WireguardPeer) {
+	peers := []TableEntry{
+		Entry(
+			"when peer is default",
+			testdsl.GeneratePeer(
+				v1alpha1.WireguardPeerSpec{},
+				v1alpha1.WireguardPeerStatus{},
+			),
+		),
+	}
+	DescribeTable("has valid [Peer] section", func(peer v1alpha1.WireguardPeer) {
 		By("creating Peer CRD")
 		Eventually(func() error {
 			peer.Spec.WireguardRef = wg.GetName()
-			return k8sClient.Create(ctx, peer)
+			return k8sClient.Create(ctx, &peer)
 		}, timeout, interval).Should(Succeed())
-		Expect(peerDsl.Reconcile(peer)).To(Succeed())
+		Expect(peerDsl.Reconcile(&peer)).To(Succeed())
 
 		By("reconciling Wireguard CRD")
-		Expect(wgDsl.Reconcile(wg)).To(Succeed())
+		Expect(wgDsl.Reconcile(&wg)).To(Succeed())
 
 		By("refetching Wireguard secret from cluster")
 		wgKey := types.NamespacedName{
@@ -145,10 +175,6 @@ var _ = Describe("Wireguard#Secret", func() {
 		peerSecret := &v1.Secret{}
 		Expect(k8sClient.Get(ctx, peerKey, peerSecret)).To(Succeed())
 
-		By("fetching wireguard service")
-		svc := &v1.Service{}
-		Expect(k8sClient.Get(ctx, wgKey, svc)).To(Succeed())
-
 		By("checking that [Peer] section exists")
 		config := string(secret.Data["config"])
 		Expect(config).To(ContainSubstring("[Peer]"))
@@ -160,6 +186,10 @@ var _ = Describe("Wireguard#Secret", func() {
 		By("validating AllowedIPs configuration")
 		ip := fmt.Sprintf("AllowedIPs = %s/32", peer.Spec.Address)
 		Expect(config).To(ContainSubstring(ip))
+
+		By("fetching wireguard service")
+		svc := &v1.Service{}
+		Expect(k8sClient.Get(ctx, wgKey, svc)).To(Succeed())
 
 		By("validating Endpoint configuration")
 		ep := fmt.Sprintf("Endpoint = %s:51820", svc.Spec.ClusterIP)

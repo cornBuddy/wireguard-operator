@@ -24,8 +24,10 @@ import (
 )
 
 const (
-	timeout  = 1 * time.Second
-	interval = 200 * time.Millisecond
+	timeout       = 1 * time.Second
+	interval      = 200 * time.Millisecond
+	keyLength     = 44
+	wireguardPort = 51820
 )
 
 var (

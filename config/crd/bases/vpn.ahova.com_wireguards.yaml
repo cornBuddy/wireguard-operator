@@ -867,10 +867,6 @@ spec:
                 description: IP addresses allowed to be routed
                 type: string
               dns:
-                default:
-                  address: 127.0.0.1
-                  deployServer: true
-                  image: docker.io/klutchell/unbound:v1.17.1
                 description: DNS configuration for peer
                 properties:
                   address:
@@ -879,9 +875,6 @@ spec:
                   deployServer:
                     description: Indicates whether to use internal kubernetes dns
                     type: boolean
-                  image:
-                    description: Image defines the image of the dns server
-                    type: string
                 type: object
               dropConnectionsTo:
                 default:
@@ -2162,6 +2155,13 @@ spec:
                   - name
                   type: object
                 type: array
+            type: object
+          status:
+            properties:
+              endpoint:
+                type: string
+              publicKey:
+                type: string
             type: object
         type: object
     served: true

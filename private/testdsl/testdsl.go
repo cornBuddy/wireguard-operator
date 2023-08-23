@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 )
 
 type Reconciler interface {
@@ -24,25 +24,27 @@ type Dsl struct {
 	Reconciler
 }
 
-func GenerateWireguard(spec vpnv1alpha1.WireguardSpec) *vpnv1alpha1.Wireguard {
+func GenerateWireguard(spec v1alpha1.WireguardSpec, status v1alpha1.WireguardStatus) v1alpha1.Wireguard {
 	name := names.SimpleNameGenerator.GenerateName("wireguard-")
-	return &vpnv1alpha1.Wireguard{
+	return v1alpha1.Wireguard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: corev1.NamespaceDefault,
 		},
-		Spec: spec,
+		Spec:   spec,
+		Status: status,
 	}
 }
 
-func GeneratePeer(spec vpnv1alpha1.WireguardPeerSpec) *vpnv1alpha1.WireguardPeer {
+func GeneratePeer(spec v1alpha1.WireguardPeerSpec, status v1alpha1.WireguardPeerStatus) v1alpha1.WireguardPeer {
 	name := names.SimpleNameGenerator.GenerateName("peer-")
-	return &vpnv1alpha1.WireguardPeer{
+	return v1alpha1.WireguardPeer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: corev1.NamespaceDefault,
 		},
-		Spec: spec,
+		Spec:   spec,
+		Status: status,
 	}
 }
 

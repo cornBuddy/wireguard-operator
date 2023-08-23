@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
 
-	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
 )
 
@@ -38,61 +38,64 @@ var _ = Describe("Wireguard controller", func() {
 	}
 
 	DescribeTable("should reconcile",
-		func(wg *vpnv1alpha1.Wireguard) {
+		func(wg v1alpha1.Wireguard) {
 			By("reconciling wireguard CR")
-			validateReconcile(wg, wgDsl)
+			validateReconcile(&wg, wgDsl)
 
 			By("reconciling peers CRs")
 			peerName := names.SimpleNameGenerator.GenerateName("peer-")
-			peer := &vpnv1alpha1.WireguardPeer{
+			peer := &v1alpha1.WireguardPeer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      peerName,
 					Namespace: corev1.NamespaceDefault,
 				},
-				Spec: vpnv1alpha1.WireguardPeerSpec{
+				Spec: v1alpha1.WireguardPeerSpec{
 					WireguardRef: wg.GetName(),
 				},
 			}
 			validateReconcile(peer, peerDsl)
 
 			By("reconciling wireguard CR once again")
-			Expect(wgDsl.Reconcile(wg)).To(Succeed())
+			Expect(wgDsl.Reconcile(&wg)).To(Succeed())
 
 			By("fetching the list of peers")
 			wgReconciler := &WireguardReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
-			peers, err := wgReconciler.getPeers(wg, ctx)
+			peers, err := wgReconciler.getPeers(ctx, &wg)
 			Expect(err).To(BeNil())
 			Expect(peers.Items).To(HaveLen(1))
 
 			By("validating wireguard CR")
-			validateConfigMap(wg)
+			validateConfigMap(&wg)
 		},
 		Entry(
 			"default configuration",
-			testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{}),
+			testdsl.GenerateWireguard(
+				v1alpha1.WireguardSpec{},
+				v1alpha1.WireguardStatus{},
+			),
 		),
 		Entry(
 			"internal dns configuration",
-			testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
-				DNS: vpnv1alpha1.DNS{
+			testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+				DNS: &v1alpha1.DNS{
 					DeployServer: false,
 					Address:      "10.96.0.1",
 				},
-			}),
+			}, v1alpha1.WireguardStatus{}),
 		),
 		Entry(
 			"sidecar configuration",
-			testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
+			testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
 				Sidecars: []corev1.Container{sidecar},
-			}),
+			}, v1alpha1.WireguardStatus{}),
 		),
 	)
 })
 
-func validateConfigMap(wireguard *vpnv1alpha1.Wireguard) {
+func validateConfigMap(wireguard *v1alpha1.Wireguard) {
 	key := types.NamespacedName{
 		Name:      wireguard.GetName(),
 		Namespace: wireguard.GetNamespace(),
@@ -104,3 +107,5 @@ func validateConfigMap(wireguard *vpnv1alpha1.Wireguard) {
 		g.Expect(k8sClient.Get(ctx, key, cm)).To(Succeed())
 	}, timeout, interval).Should(Succeed())
 }
+
+func toPtr[V any](o V) *V { return &o }

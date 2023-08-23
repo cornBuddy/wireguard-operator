@@ -49,7 +49,7 @@ endif
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.25.0
+ENVTEST_K8S_VERSION = 1.26.1
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -64,7 +64,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 .PHONY: all
-all: samples run
+all: samples tunnel run
 
 ##@ General
 
@@ -107,7 +107,7 @@ tidy:
 
 .PHONY: test
 test: manifests generate fmt vet tidy envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile coverage.out
 
 .PHONY: coverage
 coverage: test
@@ -265,3 +265,19 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+# Perform smoke tests of samples deployed
+.PHONY: e2e
+e2e:
+	kubectl get secrets -o json admin-peer \
+		| jq -r .data.config \
+		| base64 -d \
+		> /etc/wireguard/local.conf
+	sudo wg-quick down local || true
+	sudo wg-quick up local
+
+# Enable tunnelling for local testing
+.PHONY: tunnel
+tunnel:
+	pkill minikube || true
+	minikube tunnel &

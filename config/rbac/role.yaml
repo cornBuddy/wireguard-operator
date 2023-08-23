@@ -69,6 +69,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - vpn.ahova.com
   resources:
   - wireguardpeers
@@ -83,7 +95,31 @@ rules:
 - apiGroups:
   - vpn.ahova.com
   resources:
+  - wireguardpeers/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - vpn.ahova.com
+  resources:
   - wireguards
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - vpn.ahova.com
+  resources:
+  - wireguards/status
   verbs:
   - create
   - delete

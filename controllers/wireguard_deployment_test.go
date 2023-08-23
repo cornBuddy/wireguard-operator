@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -13,10 +16,11 @@ import (
 )
 
 var (
-	defaultSpec   = v1alpha1.WireguardSpec{}
-	deployDnsSpec = v1alpha1.WireguardSpec{
-		DNS: v1alpha1.DNS{
-			DeployServer: true,
+	defaultSpec    = v1alpha1.WireguardSpec{}
+	clusterDnsSpec = v1alpha1.WireguardSpec{
+		DNS: &v1alpha1.DNS{
+			DeployServer: false,
+			Address:      "127.0.0.1",
 		},
 	}
 )
@@ -32,11 +36,12 @@ var _ = Describe("Wireguard#Deployment", func() {
 		deploy = &appsv1.Deployment{}
 	})
 
-	DescribeTable("should be created properly", func(spec v1alpha1.WireguardSpec, containersCount int) {
+	DescribeTable("should be created properly", func(spec v1alpha1.WireguardSpec) {
 		By("reconcing wireguard instance")
-		wg := testdsl.GenerateWireguard(spec)
+		status := v1alpha1.WireguardStatus{}
+		wg := testdsl.GenerateWireguard(spec, status)
 		Eventually(func() error {
-			return wgDsl.Apply(ctx, wg)
+			return wgDsl.Apply(ctx, &wg)
 		}, timeout, interval).Should(Succeed())
 
 		By("fetching deployment")
@@ -48,7 +53,7 @@ var _ = Describe("Wireguard#Deployment", func() {
 			return k8sClient.Get(ctx, key, deploy)
 		}, timeout, interval).Should(Succeed())
 
-		By("validating pod context")
+		By("validating pod security context")
 		context := &corev1.SecurityContext{
 			Privileged: toPtr(true),
 			Capabilities: &corev1.Capabilities{
@@ -77,53 +82,23 @@ var _ = Describe("Wireguard#Deployment", func() {
 			Value: "1",
 		}}
 		Expect(gotSysctls).To(BeEquivalentTo(wantSysctls))
+
+		By("fetching corresponding secret")
+		secret := &corev1.Secret{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, secret)
+		}, timeout, interval).Should(Succeed())
+
+		By("checking pod template contains last applied config hash")
+		config := secret.Data["config"]
+		hash := sha1.New()
+		hash.Write(config)
+		configHash := hex.EncodeToString(hash.Sum(nil))
+		podAnnotations := deploy.Spec.Template.Annotations
+		Expect(podAnnotations).To(HaveKey("vpn.ahova.com/config-hash"))
+		Expect(podAnnotations["vpn.ahova.com/config-hash"]).To(Equal(configHash))
 	},
-		Entry("with default spec", defaultSpec, 1),
-		Entry("with dns spec", deployDnsSpec, 2),
+		Entry("with default spec", defaultSpec),
+		Entry("with cluster dns spec", clusterDnsSpec),
 	)
-
-	It("should should have proper dns config when .dns.deployServer == true", func() {
-		By("reconcing wireguard instance")
-		wg := testdsl.GenerateWireguard(deployDnsSpec)
-		Eventually(func() error {
-			return wgDsl.Apply(ctx, wg)
-		}, timeout, interval).Should(Succeed())
-
-		By("fetching deployment")
-		key := types.NamespacedName{
-			Name:      wg.GetName(),
-			Namespace: wg.GetNamespace(),
-		}
-		Eventually(func() error {
-			return k8sClient.Get(ctx, key, deploy)
-		}, timeout, interval).Should(Succeed())
-
-		By("validating dns config")
-		dnsConfig := &corev1.PodDNSConfig{
-			Nameservers: []string{"127.0.0.1"},
-		}
-		Expect(deploy.Spec.Template.Spec.DNSConfig).To(BeEquivalentTo(dnsConfig))
-		Expect(deploy.Spec.Template.Spec.DNSPolicy).To(Equal(corev1.DNSNone))
-	})
-
-	It("should should have default dns config by default", func() {
-		By("reconcing wireguard instance")
-		wg := testdsl.GenerateWireguard(defaultSpec)
-		Eventually(func() error {
-			return wgDsl.Apply(ctx, wg)
-		}, timeout, interval).Should(Succeed())
-
-		By("fetching deployment")
-		key := types.NamespacedName{
-			Name:      wg.GetName(),
-			Namespace: wg.GetNamespace(),
-		}
-		Eventually(func() error {
-			return k8sClient.Get(ctx, key, deploy)
-		}, timeout, interval).Should(Succeed())
-
-		By("validating dns config")
-		Expect(deploy.Spec.Template.Spec.DNSConfig).To(BeNil())
-		Expect(deploy.Spec.Template.Spec.DNSPolicy).To(Equal(corev1.DNSClusterFirst))
-	})
 })

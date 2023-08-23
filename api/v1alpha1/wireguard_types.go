@@ -32,10 +32,10 @@ type WireguardSpec struct {
 	// Do not allow connections from peer to DropConnectionsTo IP addresses
 	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
 
-	// +kubebuilder:default={deployServer:true,image:"docker.io/klutchell/unbound:v1.17.1",address:"127.0.0.1"}
+	// +kubebuilder:validation:Optional
 
 	// DNS configuration for peer
-	DNS DNS `json:"dns,omitempty"`
+	DNS *DNS `json:"dns,omitempty"`
 
 	// Sidecar containers to run
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`
@@ -56,9 +56,6 @@ type DNS struct {
 	// Indicates whether to use internal kubernetes dns
 	DeployServer bool `json:"deployServer,omitempty"`
 
-	// Image defines the image of the dns server
-	Image string `json:"image,omitempty"`
-
 	// Address is an IPV4 address of the DNS server
 	Address string `json:"address,omitempty"`
 }
@@ -71,7 +68,13 @@ type Wireguard struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec WireguardSpec `json:"spec,omitempty"`
+	Spec   WireguardSpec   `json:"spec,omitempty"`
+	Status WireguardStatus `json:"status,omitempty"`
+}
+
+type WireguardStatus struct {
+	PublicKey *string `json:"publicKey,omitempty"`
+	Endpoint  *string `json:"endpoint,omitempty"`
 }
 
 //+kubebuilder:object:root=true

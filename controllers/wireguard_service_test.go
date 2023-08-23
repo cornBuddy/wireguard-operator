@@ -42,11 +42,11 @@ var _ = Describe("Wireguard#Service", func() {
 		By("provisioning wireguard CRD")
 		wireguard := testdsl.GenerateWireguard(vpnv1alpha1.WireguardSpec{
 			ServiceType: st,
-		})
+		}, vpnv1alpha1.WireguardStatus{})
 		Eventually(func() error {
-			return k8sClient.Create(ctx, wireguard)
+			return k8sClient.Create(ctx, &wireguard)
 		}, timeout, interval).Should(Succeed())
-		Expect(wgDsl.Reconcile(wireguard)).To(Succeed())
+		Expect(wgDsl.Reconcile(&wireguard)).To(Succeed())
 
 		By("fetching service from cluster")
 		key := types.NamespacedName{
@@ -63,7 +63,8 @@ var _ = Describe("Wireguard#Service", func() {
 
 	DescribeTable("is updatable", func(spec1, spec2 vpnv1alpha1.WireguardSpec) {
 		By("setting prerequisites")
-		wg1 := testdsl.GenerateWireguard(spec1)
+		status := vpnv1alpha1.WireguardStatus{}
+		wg1 := testdsl.GenerateWireguard(spec1, status)
 		key := types.NamespacedName{
 			Name:      wg1.GetName(),
 			Namespace: wg1.GetNamespace(),
@@ -73,9 +74,9 @@ var _ = Describe("Wireguard#Service", func() {
 
 		By("creating initial resource")
 		Eventually(func() error {
-			return k8sClient.Create(ctx, wg1)
+			return k8sClient.Create(ctx, &wg1)
 		}, timeout, interval).Should(Succeed())
-		Expect(wgDsl.Reconcile(wg1)).To(Succeed())
+		Expect(wgDsl.Reconcile(&wg1)).To(Succeed())
 
 		By("fetching original service")
 		Eventually(func() error {
@@ -102,11 +103,11 @@ var _ = Describe("Wireguard#Service", func() {
 	}, updatableTestCases)
 
 	DescribeTable("should have configured annotations", func(spec vpnv1alpha1.WireguardSpec) {
-		wg := testdsl.GenerateWireguard(spec)
+		wg := testdsl.GenerateWireguard(spec, vpnv1alpha1.WireguardStatus{})
 		Eventually(func() error {
-			return k8sClient.Create(ctx, wg)
+			return k8sClient.Create(ctx, &wg)
 		}, timeout, interval).Should(Succeed())
-		Expect(wgDsl.Reconcile(wg)).To(Succeed())
+		Expect(wgDsl.Reconcile(&wg)).To(Succeed())
 
 		By("fetching service from cluster")
 		key := types.NamespacedName{

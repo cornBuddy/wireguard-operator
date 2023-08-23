@@ -34,7 +34,12 @@ type WireguardPeer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec WireguardPeerSpec `json:"spec,omitempty"`
+	Spec   WireguardPeerSpec   `json:"spec,omitempty"`
+	Status WireguardPeerStatus `json:"status,omitempty"`
+}
+
+type WireguardPeerStatus struct {
+	PublicKey *string `json:"publicKey,omitempty"`
 }
 
 //+kubebuilder:object:root=true
