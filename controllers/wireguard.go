@@ -138,10 +138,13 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	log.Info("Successfully read service from cluster")
 
-	ep := fact.ExtractEndpoint(*service)
-	if ep == nil {
-		log.Info("Cannot extract endpoint from service")
+	ep, err := fact.ExtractEndpoint(*service)
+	if err == factory.ErrPublicIpNotYetSet {
+		log.Info("Public ip not yet set, somehow expected")
 		return ctrl.Result{}, nil
+	} else if err != nil {
+		log.Error(err, "Cannot extract endpoint from service")
+		return ctrl.Result{}, err
 	}
 
 	desiredSecret, err := fact.Secret(publicKey, privateKey, *ep)

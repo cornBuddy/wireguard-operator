@@ -15,20 +15,48 @@ import (
 )
 
 var _ = Describe("Wireguard#ExtractEndpoint", func() {
+	It("should return error when public endpoint is not yet distinguishable", func() {
+		svc := v1.Service{}
+		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: v1.ServiceTypeLoadBalancer,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		_, err := fact.ExtractEndpoint(svc)
+		Expect(err).To(Equal(ErrPublicIpNotYetSet))
+	})
+
+	It("should return error when service type is NodePort", func() {
+		svc := v1.Service{}
+		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: v1.ServiceTypeNodePort,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		_, err := fact.ExtractEndpoint(svc)
+		Expect(err).ToNot(BeNil())
+	})
+
 	It("should return cluster ip when wg.ServiceType == ClusterIP", func() {
 		svc := v1.Service{
 			Spec: v1.ServiceSpec{
 				ClusterIP: "127.0.0.1",
 			},
 		}
-		gotEp := wireguardFactory.ExtractEndpoint(svc)
 		wantEp := fmt.Sprintf("127.0.0.1:%d", wireguardPort)
-		Expect(gotEp).ToNot(BeNil())
+		gotEp, err := wireguardFactory.ExtractEndpoint(svc)
+		Expect(err).To(BeNil())
 		Expect(*gotEp).To(Equal(wantEp))
 	})
 
+	pubIp := "127.0.0.1"
 	It("should return public ip when wg.ServiceType == LoadBalancer", func() {
-		pubIp := "127.0.0.1"
 		svc := v1.Service{
 			Status: v1.ServiceStatus{
 				LoadBalancer: v1.LoadBalancerStatus{
@@ -46,9 +74,9 @@ var _ = Describe("Wireguard#ExtractEndpoint", func() {
 			Wireguard: wg,
 			Peers:     v1alpha1.WireguardPeerList{},
 		}
-		gotEp := fact.ExtractEndpoint(svc)
 		wantEp := fmt.Sprintf("%s:%d", pubIp, wireguardPort)
-		Expect(gotEp).ToNot(BeNil())
+		gotEp, err := fact.ExtractEndpoint(svc)
+		Expect(err).To(BeNil())
 		Expect(*gotEp).To(Equal(wantEp))
 	})
 
@@ -58,8 +86,59 @@ var _ = Describe("Wireguard#ExtractEndpoint", func() {
 				ClusterIP: "127.0.0.1",
 			},
 		}
-		gotEp := wireguardFactory.ExtractEndpoint(svc)
 		wantEp := fmt.Sprintf("127.0.0.1:%d", wireguardPort)
+		gotEp, err := wireguardFactory.ExtractEndpoint(svc)
+		Expect(err).To(BeNil())
+		Expect(*gotEp).To(Equal(wantEp))
+	})
+
+	hostname := "top.kek"
+	It("should return hostname if defined", func() {
+		svc := v1.Service{
+			Status: v1.ServiceStatus{
+				LoadBalancer: v1.LoadBalancerStatus{
+					Ingress: []v1.LoadBalancerIngress{{
+						Hostname: hostname,
+					}},
+				},
+			},
+		}
+		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: v1.ServiceTypeLoadBalancer,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		wantEp := fmt.Sprintf("%s:%d", hostname, wireguardPort)
+		gotEp, err := fact.ExtractEndpoint(svc)
+		Expect(err).To(BeNil())
+		Expect(*gotEp).To(Equal(wantEp))
+	})
+
+	It("should return ip if ip and hostname both defined", func() {
+		svc := v1.Service{
+			Status: v1.ServiceStatus{
+				LoadBalancer: v1.LoadBalancerStatus{
+					Ingress: []v1.LoadBalancerIngress{{
+						Hostname: hostname,
+						IP:       pubIp,
+					}},
+				},
+			},
+		}
+		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: v1.ServiceTypeLoadBalancer,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		wantEp := fmt.Sprintf("%s:%d", pubIp, wireguardPort)
+		gotEp, err := fact.ExtractEndpoint(svc)
+		Expect(err).To(BeNil())
 		Expect(*gotEp).To(Equal(wantEp))
 	})
 })

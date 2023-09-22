@@ -28,6 +28,8 @@ const (
 )
 
 var (
+	ErrPublicIpNotYetSet = fmt.Errorf("public ip not yet set")
+
 	annotator = patch.NewAnnotator(lastAppliedAnnotation)
 )
 
@@ -37,27 +39,52 @@ type Wireguard struct {
 	Peers v1alpha1.WireguardPeerList
 }
 
-// this function breaks tests
-func (fact Wireguard) ExtractEndpoint(svc corev1.Service) *string {
+// Returns desired endpoint address for peer
+func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
+	if fact.Wireguard.Spec.EndpointAddress != nil {
+		ep := *fact.Wireguard.Spec.EndpointAddress
+		return toPtr(fmt.Sprintf("%s:%d", ep, wireguardPort)), nil
+	}
+
+	serviceType := fact.Wireguard.Spec.ServiceType
 	address := ""
-	wantLoadBalancer := fact.Wireguard.Spec.ServiceType == corev1.ServiceTypeLoadBalancer
-	wantClusterIp := fact.Wireguard.Spec.ServiceType == corev1.ServiceTypeClusterIP
-
-	publicIpIsSet := !(len(svc.Status.LoadBalancer.Ingress) == 0)
-	endpointAddress := fact.Wireguard.Spec.EndpointAddress
-
-	if endpointAddress != nil {
-		address = *endpointAddress
-	} else if wantClusterIp {
+	switch serviceType {
+	case corev1.ServiceTypeClusterIP:
 		address = svc.Spec.ClusterIP
-	} else if wantLoadBalancer && publicIpIsSet {
-		address = svc.Status.LoadBalancer.Ingress[0].IP
-	} else {
-		address = svc.Spec.ClusterIP
+	case corev1.ServiceTypeLoadBalancer:
+		address = fact.extractEndpointFromLoadBalancer(svc)
+	default:
+		return nil, fmt.Errorf("unsupported service type")
+	}
+
+	publicIpNotYetSet := address == "" &&
+		serviceType == corev1.ServiceTypeLoadBalancer
+	if publicIpNotYetSet {
+		return nil, ErrPublicIpNotYetSet
+	}
+
+	if address == "" {
+		return nil, fmt.Errorf("cannot extract endpoint from service")
 	}
 
 	result := fmt.Sprintf("%s:%d", address, wireguardPort)
-	return &result
+	return &result, nil
+}
+
+// Returns empty string when public address of LB is not set
+func (fact Wireguard) extractEndpointFromLoadBalancer(svc corev1.Service) string {
+	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+		return svc.Spec.ClusterIP
+	}
+
+	ingress := svc.Status.LoadBalancer.Ingress[0]
+	if ingress.IP != "" {
+		return ingress.IP
+	} else if ingress.Hostname != "" {
+		return ingress.Hostname
+	} else {
+		return ""
+	}
 }
 
 func (fact Wireguard) ConfigMap() (*corev1.ConfigMap, error) {
