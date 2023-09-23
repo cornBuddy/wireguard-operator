@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 	"github.com/ahova-vpn/wireguard-operator/private/factory"
@@ -131,15 +130,14 @@ func (r *WireguardPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.WireguardPeer{}).
 		Owns(&v1.Secret{}).
 		Watches(
-			&source.Kind{Type: &v1alpha1.Wireguard{}},
+			&v1alpha1.Wireguard{},
 			handler.EnqueueRequestsFromMapFunc(r.findWireguardRef),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Complete(r)
 }
 
-func (r *WireguardPeerReconciler) findWireguardRef(wg client.Object) []reconcile.Request {
-	ctx := context.TODO()
+func (r *WireguardPeerReconciler) findWireguardRef(ctx context.Context, wg client.Object) []reconcile.Request {
 	peers := &v1alpha1.WireguardPeerList{}
 	opts := &client.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(wireguardRefField, wg.GetName()),

@@ -105,6 +105,13 @@ vet: ## Run go vet against code.
 tidy:
 	go mod tidy
 
+.PHONY: update
+update: ## Updates all packates
+	go get -u ./...
+
+.PHONY: vendor
+vendor: update tidy ## Packages update and `go mod tidy`
+
 .PHONY: test
 test: manifests generate fmt vet tidy envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile coverage.out
