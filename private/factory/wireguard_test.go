@@ -87,7 +87,7 @@ var _ = Describe("Wireguard#Secret", func() {
 
 		wantPrivKey := key.String()
 		wantPubKey := key.PublicKey().String()
-		secret, err := wireguardFactory.Secret(wantPubKey, wantPrivKey, "kek")
+		secret, err := wireguardFactory.Secret(wantPubKey, wantPrivKey)
 		Expect(err).To(BeNil())
 		shouldHaveProperDecorations(secret)
 
@@ -130,7 +130,7 @@ var _ = Describe("Wireguard#Secret", func() {
 
 		wantPrivKey := key.String()
 		wantPubKey := key.PublicKey().String()
-		secret, err := fact.Secret(wantPubKey, wantPrivKey, "127.0.0.1")
+		secret, err := fact.Secret(wantPubKey, wantPrivKey)
 		Expect(err).To(BeNil())
 		Expect(secret).ToNot(BeNil())
 		Expect(secret.Data).To(HaveKey("config"))

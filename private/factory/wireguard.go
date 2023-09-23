@@ -145,7 +145,7 @@ func (fact Wireguard) Service() (*corev1.Service, error) {
 }
 
 // Returns desired secret for the current wireguard instance
-func (fact Wireguard) Secret(pubKey, privKey, peerEndpoint string) (*corev1.Secret, error) {
+func (fact Wireguard) Secret(pubKey, privKey string) (*corev1.Secret, error) {
 	tmpl, err := template.New("config").Parse(serverConfigTemplate)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,6 @@ func (fact Wireguard) Secret(pubKey, privKey, peerEndpoint string) (*corev1.Secr
 		wireguardPeers = append(wireguardPeers, serverPeer{
 			PublicKey: *peer.Status.PublicKey,
 			Address:   peer.Spec.Address,
-			Endpoint:  peerEndpoint,
 		})
 	}
 	spec := serverConfig{
@@ -456,7 +455,6 @@ func toPtr[V any](o V) *V { return &o }
 type serverPeer struct {
 	PublicKey string
 	Address   string
-	Endpoint  string
 }
 
 type serverConfig struct {
@@ -483,7 +481,6 @@ SaveConfig = false
 [Peer]
 PublicKey = {{ .PublicKey }}
 AllowedIPs = {{ .Address }}/32
-Endpoint = {{ .Endpoint }}
 PersistentKeepalive = 25
 {{ end }}`
 

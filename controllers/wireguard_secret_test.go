@@ -187,13 +187,8 @@ var _ = Describe("Wireguard#Secret defaults", func() {
 		ip := fmt.Sprintf("AllowedIPs = %s/32", peer.Spec.Address)
 		Expect(config).To(ContainSubstring(ip))
 
-		By("fetching wireguard service")
-		svc := &v1.Service{}
-		Expect(k8sClient.Get(ctx, wgKey, svc)).To(Succeed())
-
 		By("validating Endpoint configuration")
-		ep := fmt.Sprintf("Endpoint = %s:51820", svc.Spec.ClusterIP)
-		Expect(config).To(ContainSubstring(ep))
+		Expect(config).To(Not(ContainSubstring("Endpoint =")))
 
 		By("validating PersistentKeepalive configuration")
 		Expect(config).To(ContainSubstring("PersistentKeepalive = 25"))

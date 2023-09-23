@@ -147,7 +147,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	desiredSecret, err := fact.Secret(publicKey, privateKey, *ep)
+	desiredSecret, err := fact.Secret(publicKey, privateKey)
 	if err != nil {
 		log.Error(err, "Cannot generate secret")
 		return ctrl.Result{}, err
