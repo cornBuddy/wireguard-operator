@@ -52,15 +52,9 @@ func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 	case corev1.ServiceTypeClusterIP:
 		address = svc.Spec.ClusterIP
 	case corev1.ServiceTypeLoadBalancer:
-		address = fact.extractEndpointFromLoadBalancer(svc)
+		address = svc.Spec.ClusterIP
 	default:
 		return nil, fmt.Errorf("unsupported service type")
-	}
-
-	publicIpNotYetSet := address == "" &&
-		serviceType == corev1.ServiceTypeLoadBalancer
-	if publicIpNotYetSet {
-		return nil, ErrPublicIpNotYetSet
 	}
 
 	if address == "" {
