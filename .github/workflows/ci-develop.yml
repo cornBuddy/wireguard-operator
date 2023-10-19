@@ -1,11 +1,13 @@
 ---
-name: Perform CI develop
+name: Commit checks
 on:
   push:
     branches:
       - develop
+
 concurrency:
   group: "ci-${{ github.event.repository.name }}-${{ github.ref }}"
+
 jobs:
   lint:
     name: Lint
@@ -31,6 +33,7 @@ jobs:
           check-latest: true
       - name: Run pre-commit git hooks
         uses: pre-commit/action@v3.0.0
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -44,8 +47,9 @@ jobs:
           check-latest: true
       - run: make build
       - run: make test
-  tag:
-    name: Tag
+
+  bump:
+    name: Bump
     runs-on: ubuntu-latest
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -62,11 +66,12 @@ jobs:
         with:
           github_token: ${{ secrets.REPO_TOKEN }}
           release_branches: "main"
+
   close-issue:
     name: Close issue
     runs-on: ubuntu-latest
     needs:
-      - tag
+      - bump
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -85,11 +90,12 @@ jobs:
           comment: >-
             Auto-closing issue at
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   pull-request:
     name: Submit pull request
     runs-on: ubuntu-latest
     needs:
-      - tag
+      - bump
     steps:
       - name: Checkout
         uses: actions/checkout@v3
