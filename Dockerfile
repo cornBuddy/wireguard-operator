@@ -1,4 +1,4 @@
-# Build the manager binary
+# Build the wireguard-operator binary
 FROM golang:1.21 as builder
 ARG TARGETOS
 ARG TARGETARCH
@@ -15,11 +15,12 @@ COPY controllers/ controllers/
 COPY private/ private/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -v -o wireguard-operator main.go
 
 # Result container
 FROM scratch
 WORKDIR /
-COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/wireguard-operator .
 USER 65532:65532
-ENTRYPOINT ["/manager"]
+ENTRYPOINT ["/wireguard-operator"]
