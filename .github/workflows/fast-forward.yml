@@ -10,9 +10,7 @@ jobs:
       && contains(github.event.comment.body, '/fast-forward')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Fast Forward PR
-        uses: endre-spotlab/fast-forward-js-action@2.1
+      - uses: actions/checkout@v4
+      - uses: endre-spotlab/fast-forward-js-action@2.1
         with:
           GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
