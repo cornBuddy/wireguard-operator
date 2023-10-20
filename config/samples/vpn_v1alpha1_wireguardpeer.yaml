@@ -2,7 +2,7 @@
 apiVersion: vpn.ahova.com/v1alpha1
 kind: WireguardPeer
 metadata:
-  name: admin-peer
+  name: sample-peer
 spec:
-  wireguardRef: admin
+  wireguardRef: sample-wg
   address: 192.168.254.254
