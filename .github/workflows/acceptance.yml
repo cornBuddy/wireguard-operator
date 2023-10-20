@@ -1,0 +1,144 @@
+---
+
+name: Acceptance tests
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-[a-zA-Z]*'
+
+concurrency:
+  group: "ci-${{ github.event.repository.name }}-${{ github.ref }}"
+
+jobs:
+  init-env:
+    name: Init environment
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+      - name: fetch IaC sources
+        uses: actions/checkout@v3
+        with:
+          repository: ahova/terragrunt
+          ssh-key: ${{ secrets.PRIVATE_KEY }}
+          path: terragrunt
+      - uses: ./.github/actions/iac-toolset
+        with:
+          private_key: ${{ secrets.PRIVATE_KEY }}
+      - name: prepare test env
+        run: make kops apps
+        working-directory: terragrunt
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+  test:
+    name: Test
+    runs-on: self-hosted
+    needs:
+      - init-env
+    env:
+      IMAGE: "478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/wireguard-operator"
+    steps:
+      - uses: actions/checkout@v3
+      - name: prepare golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: 'stable'
+          check-latest: true
+      - name: gather kubeconfig
+        id: kubeconfig
+        run: |
+          echo "KUBE_CONFIG<<EOF" >> $GITHUB_ENV
+          cat "$HOME/.kube/config" | base64 >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      - name: prepare kubectl
+        uses: tale/kubectl-action@v1
+        with:
+          base64-kube-config: ${{ env.KUBE_CONFIG }}
+      - run: echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: deploy app to cluster
+        run: make deploy samples
+        env:
+          IMG_BASE: "${{ env.IMAGE }}"
+      - name: run smoke tests
+        run: make smoke
+
+  cleanup:
+    name: Cleanup environment
+    runs-on: self-hosted
+    needs:
+      - test
+    if: always()
+    steps:
+      - uses: actions/checkout@v3
+      - name: fetch IaC sources
+        uses: actions/checkout@v3
+        with:
+          repository: ahova/terragrunt
+          ssh-key: ${{ secrets.PRIVATE_KEY }}
+          path: terragrunt
+      - uses: ./.github/actions/iac-toolset
+        with:
+          private_key: ${{ secrets.PRIVATE_KEY }}
+      - name: teardown test env
+        run: make -ik destroy-apps destroy-kops
+        working-directory: terragrunt
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    needs:
+      - test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peter-evans/create-pull-request@v5
+        id: pr
+        with:
+          delete-branch: true
+          base: main
+          token: ${{ secrets.REPO_TOKEN }}
+      - name: trigger fast forward
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: "/fast-forward"
+          pr_number: ${{ steps.pr.outputs.pull-request-number }}
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+
+  close-issue:
+    name: Close issue
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Parse issue from commit message
+        id: parsed
+        run: |
+          issue=$(echo $COMMIT_MESSAGE | sed -n 's/.*#\([0-9]*\).*/\1/p')
+          echo "issue_number=$issue" >> $GITHUB_OUTPUT
+        env:
+          COMMIT_MESSAGE: "${{ github.event.head_commit.message }}"
+      - name: Close Issue
+        if: steps.parsed.outputs.issue_number != ''
+        uses: peter-evans/close-issue@v2
+        with:
+          issue-number: ${{ steps.parsed.outputs.issue_number }}
+          comment: >-
+            Auto-closing issue at
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
