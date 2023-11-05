@@ -81,7 +81,7 @@ jobs:
         env:
           IMG_BASE: >-
             478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/wireguard-operator
-          TAG: "${{ steps.tag.outputs.previous_tag  }}"
+          TAG: "${{ steps.tag.outputs.new_version  }}"
       - name: run smoke tests
         run: make smoke
 
