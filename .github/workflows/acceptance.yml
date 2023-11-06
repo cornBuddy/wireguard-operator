@@ -71,17 +71,14 @@ jobs:
         uses: tale/kubectl-action@v1
         with:
           base64-kube-config: ${{ env.KUBE_CONFIG }}
-      - uses: mathieudutour/github-tag-action@v6.1
-        id: tag
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: true
+      - uses: actions-ecosystem/action-get-latest-tag@v1
+        id: get-latest-tag
       - name: deploy app to cluster
         run: make deploy samples
         env:
           IMG_BASE: >-
             478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/wireguard-operator
-          TAG: "${{ steps.tag.outputs.new_version  }}"
+          TAG: "${{ steps.get-latest-tag.outputs.tag }}"
       - name: run smoke tests
         run: make smoke
 
