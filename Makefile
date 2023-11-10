@@ -65,10 +65,12 @@ fmt: ## Run go fmt against code.
 
 .PHONY: vet
 vet: ## Run go vet against code.
+	@$(MAKE) -C spec vet
 	go vet ./...
 
 .PHONY: tidy
 tidy: ## Run go mod tidy against code.
+	@$(MAKE) -C spec tidy
 	go mod tidy
 
 .PHONY: update
@@ -156,7 +158,7 @@ uninstall: manifests kustomize ## Uninstall CRDs
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=false -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller
+deploy: manifests kustomize install ## Deploy controller
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	kubectl create namespace wireguard-operator --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.66.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml

@@ -74,7 +74,7 @@ jobs:
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
       - name: deploy app to cluster
-        run: make deploy samples
+        run: make deploy
         env:
           IMG_BASE: >-
             478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/wireguard-operator

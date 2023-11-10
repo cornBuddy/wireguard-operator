@@ -1,31 +1,24 @@
 package spec
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	ctx = context.TODO()
-)
-
 const (
-	timeout  = 10 * time.Second
+	timeout  = 60 * time.Second
 	interval = 200 * time.Millisecond
 )
 
-func TestSamples(t *testing.T) {
-	client, err := makeK8sClient()
-	assert.Nil(t, err, "k8s config should be available")
+func TestCRDsShouldBeInstalled(t *testing.T) {
+	t.Parallel()
+
+	client, err := MakeApiExtensionsClient()
+	assert.Nil(t, err, "k8s should be available")
 
 	opts := metav1.GetOptions{}
 	wg, err := client.ApiextensionsV1().CustomResourceDefinitions().
@@ -39,22 +32,38 @@ func TestSamples(t *testing.T) {
 	assert.NotEmpty(t, peer, "should have peer crd installed")
 }
 
-func makeK8sClient() (*clientset.Clientset, error) {
-	userHomeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
+func TestSamplesShouldBeConnectable(t *testing.T) {
+	t.Parallel()
 
-	kubeConfigPath := filepath.Join(userHomeDir, ".kube", "config")
-	kubeConfig, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
-	if err != nil {
-		return nil, err
-	}
+	apiExtClient, err := MakeApiExtensionsClient()
+	assert.Nil(t, err, "k8s should be available")
 
-	clientset, err := clientset.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
+	dynamicClient, err := MakeDynamicClient()
+	assert.Nil(t, err, "k8s should be available")
 
-	return clientset, nil
+	staticClient, err := MakeStaticClient()
+	assert.Nil(t, err, "k8s should be available")
+
+	dsl := Dsl{
+		ApiExtensionsClient: apiExtClient,
+		DynamicClient:       dynamicClient,
+		StaticClient:        staticClient,
+	}
+	err = dsl.MakeSamples()
+	assert.Nil(t, err, "samples should be deployed")
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		client := staticClient.CoreV1().Secrets(namespace)
+		opts := metav1.GetOptions{}
+		secret, err := client.Get(ctx, "peer-sample", opts)
+		assert.Nil(c, err, "should find secret")
+		assert.Contains(c, secret.Data, "config",
+			"peer secret should have config")
+	}, timeout, interval,
+		"should eventually produce a secret with peer config")
+
+	// TODO: ensure that peer is connectable
+
+	err = dsl.DeleteSamples()
+	assert.Nil(t, err, "samples should be deleted")
 }
