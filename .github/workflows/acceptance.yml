@@ -74,13 +74,14 @@ jobs:
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
       - name: deploy app to cluster
-        run: make deploy samples
+        run: make deploy
         env:
           IMG_BASE: >-
-            478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/wireguard-operator
+            478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
           TAG: "${{ steps.get-latest-tag.outputs.tag }}"
       - name: run smoke tests
         run: make smoke
+      # TODO: dump some debug info to troubleshoot current issue with smoke tests
 
   cleanup:
     name: Cleanup environment
