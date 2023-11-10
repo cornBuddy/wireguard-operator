@@ -1,6 +1,10 @@
 .PHONY: smoke
 smoke:
-	go test -v ./smoke_test.go
+	go test -v ./main_test.go ./smoke_test.go
+
+.PHONY: vet
+vet:
+	go vet ./...
 
 .PHONY: tidy
 tidy: ## Run go mod tidy against code.
