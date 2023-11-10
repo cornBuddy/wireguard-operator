@@ -25,8 +25,6 @@ spec:
                   values:
                     - amd64
                     - arm64
-                    - ppc64le
-                    - s390x
                 - key: kubernetes.io/os
                   operator: In
                   values:
@@ -36,11 +34,9 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: manager
+        - name: wireguard-operator
           image: controller:latest
           imagePullPolicy: IfNotPresent
-          command:
-            - /manager
           args:
             - --leader-elect
           securityContext:

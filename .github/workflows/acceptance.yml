@@ -74,13 +74,19 @@ jobs:
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
       - name: deploy app to cluster
-        run: make deploy samples
+        run: make deploy
         env:
           IMG_BASE: >-
-            478845996840.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/wireguard-operator
+            478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
           TAG: "${{ steps.get-latest-tag.outputs.tag }}"
+      # TODO: ensure that operator operates
       - name: run smoke tests
         run: make smoke
+      - run: |
+          kubectl get pod --namespace=wireguard-operator
+          kubectl get pod --namespace=default
+          kubectl get service -o wide --namespace=default
+          kubectl get node
 
   cleanup:
     name: Cleanup environment
