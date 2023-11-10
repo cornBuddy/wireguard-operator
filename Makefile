@@ -65,10 +65,12 @@ fmt: ## Run go fmt against code.
 
 .PHONY: vet
 vet: ## Run go vet against code.
+	@$(MAKE) -C spec vet
 	go vet ./...
 
 .PHONY: tidy
 tidy: ## Run go mod tidy against code.
+	@$(MAKE) -C spec tidy
 	go mod tidy
 
 .PHONY: update
