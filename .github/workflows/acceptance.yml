@@ -79,14 +79,14 @@ jobs:
           IMG_BASE: >-
             478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
           TAG: "${{ steps.get-latest-tag.outputs.tag }}"
-      # TODO: ensure that operator operates
-      - name: run smoke tests
-        run: make smoke
-      - run: |
+      - name: sanity checks
+        run: |
           kubectl get pod --namespace=wireguard-operator
           kubectl get pod --namespace=default
           kubectl get service -o wide --namespace=default
           kubectl get node
+      - name: run smoke tests
+        run: make smoke
 
   cleanup:
     name: Cleanup environment
