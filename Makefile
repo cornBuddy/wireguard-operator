@@ -13,7 +13,7 @@ TAG ?= latest
 IMG ?= ${IMG_BASE}:${TAG}
 
 .PHONY: all
-all: samples tunnel run
+all: samples run
 
 ##@ General
 
@@ -40,6 +40,7 @@ docker: ## Build docker image
 
 .PHONY: clean
 clean: uninstall ## Cleans up development environment
+	@$(MAKE) -C spec clean
 	docker rmi $(IMG)
 	rm $(BIN_PATH) || true
 	minikube delete
@@ -88,7 +89,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o $(BIN_PATH) main.go
 
 .PHONY: run
-run: manifests generate install fmt vet test ## Run a controller from your host.
+run: tunnel manifests generate install fmt vet test ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: generate

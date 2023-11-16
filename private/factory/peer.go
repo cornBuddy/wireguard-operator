@@ -80,7 +80,7 @@ func (fact Peer) secret(endpoint string) (*corev1.Secret, error) {
 		DNS:           dns,
 		PeerPublicKey: peerPublicKey,
 		Endpoint:      endpoint,
-		AllowedIPs:    "0.0.0.0/0, ::/0",
+		AllowedIPs:    "0.0.0.0/0",
 	}
 	buf := new(bytes.Buffer)
 	if err := tmpl.Execute(buf, spec); err != nil {
@@ -108,7 +108,8 @@ DNS = {{ .DNS }}
 [Peer]
 PublicKey = {{ .PeerPublicKey }}
 Endpoint = {{ .Endpoint }}
-AllowedIPs = {{ .AllowedIPs }}`
+AllowedIPs = {{ .AllowedIPs }}
+`
 
 type peerConfig struct {
 	// .spec.Address

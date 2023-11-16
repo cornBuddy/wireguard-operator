@@ -1,5 +1,11 @@
+.PHONY: clean
+clean:
+	- kubectl delete wireguard --all
+	- kubectl delete wireguardpeer --all
+	- docker rm -f peer-test
+
 .PHONY: smoke
-smoke:
+smoke: clean
 	go test -v ./main_test.go ./smoke_test.go
 
 .PHONY: vet
