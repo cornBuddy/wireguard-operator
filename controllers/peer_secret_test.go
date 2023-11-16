@@ -89,7 +89,7 @@ var _ = Describe("WireguardPeer#Secret", func() {
 		pubKeyConfig := fmt.Sprintf("PublicKey = %s", wgSecret.Data["public-key"])
 		Expect(config).To(ContainSubstring(pubKeyConfig))
 
-		ips := "AllowedIPs = 0.0.0.0/0, ::/0"
+		ips := "AllowedIPs = 0.0.0.0/0\n"
 		Expect(config).To(ContainSubstring(ips))
 	})
 

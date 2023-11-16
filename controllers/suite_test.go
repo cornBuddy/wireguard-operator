@@ -53,8 +53,9 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	By("bootstrapping test environment")
+	crdPath := filepath.Join("..", "config", "crd", "bases")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{crdPath},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -105,10 +106,10 @@ func validateReconcile(object client.Object, dsl testdsl.Dsl) {
 
 	Eventually(func(g Gomega) {
 		By("Creating the custom resource")
-		g.Expect(k8sClient.Create(context.TODO(), object)).To(Succeed())
+		g.Expect(k8sClient.Create(ctx, object)).To(Succeed())
 
 		By("Checking if the custom resource was successfully created")
-		g.Expect(k8sClient.Get(context.TODO(), key, object)).To(Succeed())
+		g.Expect(k8sClient.Get(ctx, key, object)).To(Succeed())
 
 		By("Reconciling the custom resource created")
 		g.Expect(dsl.Reconcile(object)).To(Succeed())

@@ -385,7 +385,6 @@ func getVolumes(wireguard v1alpha1.Wireguard) ([]corev1.Volume, containerMounts)
 		unbound: []corev1.VolumeMount{},
 		wireguard: []corev1.VolumeMount{{
 			Name:      "wireguard-config",
-			ReadOnly:  true,
 			MountPath: "/config",
 		}},
 	}
