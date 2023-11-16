@@ -13,4 +13,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: endre-spotlab/fast-forward-js-action@2.1
         with:
-          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}

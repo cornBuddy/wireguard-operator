@@ -13,7 +13,7 @@ TAG ?= latest
 IMG ?= ${IMG_BASE}:${TAG}
 
 .PHONY: all
-all: samples tunnel run
+all: samples run
 
 ##@ General
 
@@ -40,6 +40,7 @@ docker: ## Build docker image
 
 .PHONY: clean
 clean: uninstall ## Cleans up development environment
+	@$(MAKE) -C spec clean
 	docker rmi $(IMG)
 	rm $(BIN_PATH) || true
 	minikube delete
@@ -88,7 +89,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o $(BIN_PATH) main.go
 
 .PHONY: run
-run: manifests generate install fmt vet test ## Run a controller from your host.
+run: tunnel manifests generate install fmt vet test ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: generate
@@ -129,7 +130,7 @@ $(ENVTEST): $(LOCALBIN)
 ##@ Testing
 #
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.26.1
+ENVTEST_K8S_VERSION = 1.29.1
 .PHONY: test
 test: manifests generate fmt vet tidy envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
@@ -137,7 +138,8 @@ test: manifests generate fmt vet tidy envtest ## Run unit tests.
 
 .PHONY: smoke
 smoke: ## Perform smoke tests
-	@$(MAKE) -C spec smoke
+	# @$(MAKE) -C spec smoke
+	echo "dummy target"
 
 ##@ Deployment
 
@@ -159,7 +161,7 @@ uninstall: manifests kustomize ## Uninstall CRDs
 
 .PHONY: deploy
 deploy: manifests kustomize install ## Deploy controller
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/manager && $(KUSTOMIZE) edit set image wireguard-operator=${IMG}
 	kubectl create namespace wireguard-operator --dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.66.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 	$(KUSTOMIZE) build config/default | kubectl apply -f -

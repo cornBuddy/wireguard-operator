@@ -3,8 +3,17 @@ package spec
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/strslice"
+	dockerClient "github.com/docker/docker/client"
 
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,9 +40,106 @@ var (
 )
 
 type Dsl struct {
+	T                   *testing.T
+	DockerClient        *dockerClient.Client
 	ApiExtensionsClient *clientset.Clientset
 	DynamicClient       *dynamic.DynamicClient
 	StaticClient        *kubernetes.Clientset
+}
+
+// starts a process withing container with the given id, returns cmd output
+func (dsl Dsl) Exec(id string, cmd []string) (string, error) {
+	cli := dsl.DockerClient
+	execCfg := types.ExecConfig{
+		Cmd:          cmd,
+		Tty:          true,
+		AttachStdout: true,
+		Detach:       true,
+		AttachStdin:  true,
+	}
+	exec, err := cli.ContainerExecCreate(ctx, id, execCfg)
+	if err != nil {
+		return "", err
+	}
+	dsl.T.Log("exec created")
+
+	execCheck := types.ExecStartCheck{}
+	attach, err := cli.ContainerExecAttach(ctx, exec.ID, execCheck)
+	if err != nil {
+		return "", err
+	}
+	defer attach.Close()
+	dsl.T.Log("exec attached")
+
+	buf := new(strings.Builder)
+	if _, err := io.Copy(buf, attach.Reader); err != nil {
+		return "", err
+	}
+	dsl.T.Log("exec output copied")
+
+	return buf.String(), nil
+}
+
+// spawns peer as a docker container
+func (dsl Dsl) SpawnPeer(peerConfig string) (container.CreateResponse, error) {
+	empty := container.CreateResponse{}
+	config, err := dsl.makeTempConfig(peerConfig)
+	if err != nil {
+		return empty, err
+	}
+	dsl.T.Log("config written")
+
+	const image = "docker.io/linuxserver/wireguard:latest"
+	cli := dsl.DockerClient
+	pullOpts := types.ImagePullOptions{}
+	reader, err := cli.ImagePull(ctx, image, pullOpts)
+	if err != nil {
+		return empty, err
+	}
+	dsl.T.Log("pulling image:")
+	io.Copy(os.Stdout, reader)
+
+	hostConfig := &container.HostConfig{
+		CapAdd: strslice.StrSlice{"NET_ADMIN"},
+		Mounts: []mount.Mount{{
+			Type:   mount.TypeBind,
+			Source: config.Name(),
+			Target: "/config/wg_confs/wg0.conf",
+		}},
+		Sysctls: map[string]string{
+			"net.ipv4.conf.all.src_valid_mark": "1",
+		},
+	}
+	container, err := cli.ContainerCreate(ctx, &container.Config{
+		Image: image,
+	}, hostConfig, nil, nil, "peer-test")
+	if err != nil {
+		return empty, err
+	}
+	dsl.T.Log("container created")
+
+	startOpts := types.ContainerStartOptions{}
+	if err := cli.ContainerStart(ctx, container.ID, startOpts); err != nil {
+		return empty, err
+	}
+	dsl.T.Log("container started")
+
+	return container, nil
+}
+
+func (dsl Dsl) makeTempConfig(peerConfig string) (*os.File, error) {
+	path := "/tmp/test-peer.conf"
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, err
+	}
+
+	data := []byte(peerConfig)
+	if err := os.WriteFile(file.Name(), data, 0644); err != nil {
+		return nil, err
+	}
+
+	return file, nil
 }
 
 func (dsl Dsl) MakeSamples() error {
@@ -136,35 +242,65 @@ func (dsl Dsl) objectToUnstructured(
 	return unstrcd, &mapping.Resource, nil
 }
 
-func MakeStaticClient() (*kubernetes.Clientset, error) {
+func NewDsl(t *testing.T) (*Dsl, error) {
+	apiExtClient, err := makeApiExtensionsClient()
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := makeDynamicClient()
+	if err != nil {
+		return nil, err
+	}
+
+	staticClient, err := makeStaticClient()
+	if err != nil {
+		return nil, err
+	}
+
+	dockerClient, err := dockerClient.NewClientWithOpts()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Dsl{
+		T:                   t,
+		DockerClient:        dockerClient,
+		ApiExtensionsClient: apiExtClient,
+		DynamicClient:       dynamicClient,
+		StaticClient:        staticClient,
+	}, nil
+}
+
+func makeStaticClient() (*kubernetes.Clientset, error) {
 	kubeConfig, err := makeKubeConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := kubernetes.NewForConfig(kubeConfig)
+	dockerClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return client, nil
+	return dockerClient, nil
 }
 
-func MakeDynamicClient() (*dynamic.DynamicClient, error) {
+func makeDynamicClient() (*dynamic.DynamicClient, error) {
 	kubeConfig, err := makeKubeConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := dynamic.NewForConfig(kubeConfig)
+	dockerClient, err := dynamic.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return client, nil
+	return dockerClient, nil
 }
 
-func MakeApiExtensionsClient() (*clientset.Clientset, error) {
+func makeApiExtensionsClient() (*clientset.Clientset, error) {
 	kubeConfig, err := makeKubeConfig()
 	if err != nil {
 		return nil, err
