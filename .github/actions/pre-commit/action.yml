@@ -1,0 +1,14 @@
+---
+
+name: pre-commit checks
+description: Sets up and runs pre-commit
+
+runs:
+  using: composite
+  steps:
+    - uses: wagoid/commitlint-github-action@v5
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        update-environment: false
+    - uses: pre-commit/action@v3.0.0

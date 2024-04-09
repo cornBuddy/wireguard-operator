@@ -6,18 +6,12 @@ description: Fetches binaries to work with infrastructure
 inputs:
   private_key:
     required: true
+    description: "ssh private key authorized to pull terraform-modules repo"
 
 runs:
   using: composite
   steps:
-    - name: setup kops
-      uses: supplypike/setup-bin@v3
-      with:
-        uri: https://github.com/kubernetes/kops/releases/download/v1.28.0/kops-linux-amd64
-        name: kops
-        version: v1.28.0
-    - name: Setup Terragrunt
-      uses: autero1/action-terragrunt@v1.1.1
+    - uses: autero1/action-terragrunt@v3.0.2
       with:
         terragrunt_version: latest
     - uses: hashicorp/setup-terraform@v2
