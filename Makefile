@@ -144,17 +144,13 @@ test: manifests generate fmt vet tidy envtest ## Run unit tests.
 
 .PHONY: smoke
 smoke: ## Perform smoke tests
-	# @$(MAKE) -C spec smoke
-	echo "dummy target"
+	echo "TODO: implement me"
 
 ##@ Deployment
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
-	# NOTE: this is workaroud for acceptance tests
-	# wait some time to ensure that crds are delivered to the cluster
-	sleep 10
 
 .PHONY: samples
 samples: install ## Deploy samples
