@@ -2,7 +2,6 @@
 clean:
 	- kubectl delete wireguard --all
 	- kubectl delete wireguardpeer --all
-	- docker rm -f peer-test
 
 .PHONY: smoke
 smoke: clean

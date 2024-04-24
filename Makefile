@@ -4,29 +4,23 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+KUSTOMIZE_VERSION ?= 5.4.2
+ENVTEST_K8S_VERSION ?= 1.29.5
+
 LOCALBIN ?= $(shell pwd)/bin
+ENVTEST ?= $(LOCALBIN)/setup-envtest
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 
+BIN_PATH ?= "./wireguard-operator"
 IMG_BASE ?= wireguard-operator
 TAG ?= latest
 IMG ?= ${IMG_BASE}:${TAG}
 
-.PHONY: all
-all: samples run
-
 ##@ General
 
-# The help target prints out all targets with their descriptions organized
-# beneath their categories. The categories are represented by '##@' and the
-# target descriptions by '##'. The awk commands is responsible for reading the
-# entire set of makefiles included in this invocation, looking for lines of the
-# file as xyz: ## something, and then pretty-format the target and help. Then,
-# if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
-# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
-# More info on the awk command:
-# http://linuxcommand.org/lc3_adv_awk.php
+.PHONY: default
+default: clean run ## Fresh start of the operator from local sources.
 
 .PHONY: help
 help: ## Display this help.
@@ -34,36 +28,20 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: run
+run: manifests generate install fmt vet test ## Run a controller from your host.
+	go run ./main.go
+
 .PHONY: pre-commit
 pre-commit:
 	pre-commit install
 	pre-commit run --verbose --all-files --show-diff-on-failure
 
-.PHONY: docker
-docker: ## Build docker image
-	docker build --tag ${IMG} .
-
 .PHONY: clean
 clean: uninstall ## Cleans up development environment
 	@$(MAKE) -C spec clean
-	docker rmi $(IMG)
-	rm $(BIN_PATH) || true
-	minikube delete
-
-.PHONY: minikube
-minikube: ## Sets up test k8s cluster
-	minikube start \
-		--cpus='2' \
-		--memory='2g' \
-		--addons=ingress \
-		--extra-config="kubelet.allowed-unsafe-sysctls=net.ipv4.*,net.ipv6.*" \
-		--driver=docker
-
-
-.PHONY: tunnel
-tunnel: ## Enable tunnelling for local testing
-	pkill minikube || true
-	minikube tunnel &
+	- docker rmi $(IMG)
+	- rm $(BIN_PATH)
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -89,14 +67,13 @@ vendor: update tidy ## Packages update and `go mod tidy`
 
 ##@ Build
 
+.PHONY: docker
+docker: ## Build docker image
+	docker build --tag ${IMG} .
+
 .PHONY: build
-BIN_PATH ?= "./wireguard-operator"
 build: generate fmt vet ## Build manager binary.
 	go build -o $(BIN_PATH) main.go
-
-.PHONY: run
-run: tunnel manifests generate install fmt vet test ## Run a controller from your host.
-	go run ./main.go
 
 .PHONY: generate
 generate: controller-gen ## Generates some golang code for CRDs
@@ -110,23 +87,16 @@ manifests: controller-gen ## Generate CRDs
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
-## Tool Binaries
-ENVTEST ?= $(LOCALBIN)/setup-envtest
-
-## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
-
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(KUSTOMIZE_VERSION) $(LOCALBIN); }
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
-	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
@@ -134,17 +104,16 @@ $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 ##@ Testing
-#
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.1
 .PHONY: test
 test: manifests generate fmt vet tidy envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		go test -v $(shell go list ./... | grep -v /spec) -coverprofile coverage.out
+		go test $(shell go list ./... | grep -v /spec) -coverprofile coverage.out
 
 .PHONY: smoke
 smoke: ## Perform smoke tests
-	echo "TODO: implement me"
+	@$(MAKE) -C spec smoke
 
 ##@ Deployment
 
@@ -158,8 +127,8 @@ samples: install ## Deploy samples
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs
-	$(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=false -f -
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=false -f -
+	- $(KUSTOMIZE) build config/samples | kubectl delete --ignore-not-found=true -f -
+	- $(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=true -f -
 
 .PHONY: deploy
 deploy: manifests kustomize install ## Deploy controller
@@ -169,6 +138,6 @@ deploy: manifests kustomize install ## Deploy controller
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=false -f -
-	kubectl delete namespace wireguard-operator
+undeploy: kustomize ## Undeploy controller
+	- $(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=false -f -
+	- kubectl delete namespace wireguard-operator

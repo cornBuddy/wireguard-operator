@@ -1,10 +1,9 @@
 ---
 repos:
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: '2.7.3'
+    rev: 2.7.3
     hooks:
       - id: editorconfig-checker
-        alias: ec
   - repo: local
     hooks:
       - id: make-fmt

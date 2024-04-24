@@ -1,28 +1,17 @@
 ---
-
 name: Acceptance tests
 on:
   pull_request:
-    branches: [main]
-    types:
-      - labeled
-      - unlabeled
-      - synchronize
-      - opened
-      - edited
-      - ready_for_review
-      - reopened
-      - unlocked
-  pull_request_review:
-    types: [submitted]
-  check_suite:
-    types: [completed]
+    types: [labeled]
 
 concurrency:
-  group: "acceptance-${{ github.event.repository.name }}"
+  group: "deployment-pipeline-${{ github.event.repository.name }}"
 
 env:
   TEST_CLUSTER_NAME: test
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
 
 jobs:
   disapprove-pull-request:
@@ -38,105 +27,66 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   prepare-env:
-    name: Prepare test environment
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
     steps:
       - uses: actions/checkout@v4
-      - name: fetch IaC sources
-        uses: actions/checkout@v4
         with:
-          repository: ahova/terragrunt
-          ssh-key: ${{ secrets.PRIVATE_KEY }}
-          path: terragrunt
-      - uses: ./.github/actions/iac-toolset
-        with:
-          private_key: ${{ secrets.PRIVATE_KEY }}
-      - name: prepare test env
-        run: >-
-          terragrunt run-all apply -auto-approve --terragrunt-non-interactive
-        working-directory: >-
-          terragrunt/aws/ahova-vpn-dev/clusters/${{ env.TEST_CLUSTER_NAME }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
-      - uses: actions-ecosystem/action-get-latest-tag@v1
-        id: get-latest-tag
+          fetch-depth: 0
+          fetch-tags: true
       - uses: actions/setup-go@v3
         with:
           go-version: 'stable'
           check-latest: true
-      - name: deploy app to cluster
-        run: make deploy
+      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
+      - run: kubectl get no
+      - uses: actions-ecosystem/action-get-latest-tag@v1
+        id: latest-tag
+        with:
+          semver_only: false
+      - run: make deploy
         env:
           IMG_BASE: >-
             478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
-          TAG: "${{ steps.get-latest-tag.outputs.tag }}"
+          TAG: ${{ steps.latest-tag.outputs.tag }}
 
-
-  test:
-    name: Test
+  acceptance:
     runs-on: ubuntu-latest
     needs:
       - prepare-env
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
       - run: make smoke
 
-  teardown-env:
-    name: Tear down test environment
-    runs-on: ubuntu-latest
-    needs:
-      - test
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - name: fetch IaC sources
-        uses: actions/checkout@v4
-        with:
-          repository: ahova/terragrunt
-          ssh-key: ${{ secrets.PRIVATE_KEY }}
-          path: terragrunt
-      - uses: ./.github/actions/iac-toolset
-        with:
-          private_key: ${{ secrets.PRIVATE_KEY }}
-      - name: destroy test env
-        run: >-
-          terragrunt run-all destroy -auto-approve --terragrunt-non-interactive
-        working-directory: >-
-          terragrunt/aws/ahova-vpn-dev/clusters/${{ env.TEST_CLUSTER_NAME }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-
   approve-pull-request:
-    name: Approve pull request
     runs-on: ubuntu-latest
     needs:
-      - test
+      - acceptance
     steps:
       - uses: actions/checkout@v4
       - run: gh pr review "${{ github.event.number }}" --approve
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
+  clean-env:
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - acceptance
+    steps:
+      - uses: actions/checkout@v4
+      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
+      - run: make undeploy
+      - run: gh pr edit ${{ github.event.number }} --remove-label "help wanted"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
   release:
-    name: Release
     runs-on: ubuntu-latest
     needs:
-      - test
+      - acceptance
     steps:
       - uses: actions/checkout@v4
       - uses: thollander/actions-comment-pull-request@v2
@@ -145,10 +95,9 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.PAT_TOKEN }}"
 
   close-issue:
-    name: Close issue
     runs-on: ubuntu-latest
     needs:
-      - test
+      - acceptance
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/close-issue

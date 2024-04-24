@@ -24,8 +24,8 @@ type WireguardSpec struct {
 
 	// +kubebuilder:default="192.168.254.1/24"
 
-	// Network space to use
-	Network string `json:"network,omitempty"`
+	// Address space to use
+	Address `json:"address,omitempty"`
 
 	// +kubebuilder:default={"192.168.0.0/16","172.16.0.0/12","10.0.0.0/8","169.254.169.254/32"}
 

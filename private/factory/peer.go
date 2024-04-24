@@ -9,8 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
 )
 
@@ -20,8 +18,10 @@ type Peer struct {
 	Wireguard v1alpha1.Wireguard
 }
 
-func (fact Peer) Secret(endpoint string) (*corev1.Secret, error) {
-	secret, err := fact.secret(endpoint)
+func (fact Peer) Secret(endpoint, pubKey, privKey string) (
+	*corev1.Secret, error) {
+
+	secret, err := fact.secret(endpoint, pubKey, privKey)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,9 @@ func (fact Peer) Secret(endpoint string) (*corev1.Secret, error) {
 	return secret, nil
 }
 
-func (fact Peer) secret(endpoint string) (*corev1.Secret, error) {
+func (fact Peer) secret(endpoint, publicKey, privateKey string) (
+	*corev1.Secret, error) {
+
 	peerPublicKey := *fact.Wireguard.Status.PublicKey
 	peer := fact.Peer
 	meta := metav1.ObjectMeta{
@@ -58,14 +60,6 @@ func (fact Peer) secret(endpoint string) (*corev1.Secret, error) {
 		return nil, err
 	}
 
-	key, err := wgtypes.GeneratePrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	privateKey := []byte(key.String())
-	publicKey := []byte(key.PublicKey().String())
-
 	var dns string
 	wireguard := fact.Wireguard
 	if wireguard.Spec.DNS == nil {
@@ -74,9 +68,10 @@ func (fact Peer) secret(endpoint string) (*corev1.Secret, error) {
 		dns = wireguard.Spec.DNS.Address
 	}
 
+	address := fact.Peer.Spec.Address
 	spec := peerConfig{
-		Address:       peer.Spec.Address,
-		PrivateKey:    string(privateKey),
+		Address:       address,
+		PrivateKey:    privateKey,
 		DNS:           dns,
 		PeerPublicKey: peerPublicKey,
 		Endpoint:      endpoint,
@@ -92,8 +87,8 @@ func (fact Peer) secret(endpoint string) (*corev1.Secret, error) {
 		ObjectMeta: meta,
 		Data: map[string][]byte{
 			"config":      config,
-			"private-key": privateKey,
-			"public-key":  publicKey,
+			"private-key": []byte(privateKey),
+			"public-key":  []byte(publicKey),
 		},
 	}
 
@@ -101,7 +96,7 @@ func (fact Peer) secret(endpoint string) (*corev1.Secret, error) {
 }
 
 const peerConfigTemplate = `[Interface]
-Address = {{ .Address }}/32
+Address = {{ .Address }}
 PrivateKey = {{ .PrivateKey }}
 DNS = {{ .DNS }}
 
@@ -109,11 +104,12 @@ DNS = {{ .DNS }}
 PublicKey = {{ .PeerPublicKey }}
 Endpoint = {{ .Endpoint }}
 AllowedIPs = {{ .AllowedIPs }}
+PersistentKeepalive = 25
 `
 
 type peerConfig struct {
 	// .spec.Address
-	Address string
+	Address v1alpha1.Address
 	// private key of the peer
 	PrivateKey string
 	// wireguard.spec.DNS.address
