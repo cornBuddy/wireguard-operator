@@ -1,65 +1,69 @@
 package factory
 
 import (
+	"log"
+	"os"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/test/dsl"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
 	scheme *runtime.Scheme
 
-	wireguardFactory Wireguard
-	peerFactory      Peer
+	defaultWgFact   Wireguard
+	defaultPeerFact Peer
 
-	defaultWireguard = testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+	defaultWireguard = dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+		Address:     "192.168.1.1/24",
 		ServiceType: corev1.ServiceTypeClusterIP,
 	}, v1alpha1.WireguardStatus{
 		Endpoint:  toPtr("127.0.0.1:51820"),
 		PublicKey: toPtr("kekeke"),
 	})
-	defaultPeer = testdsl.GeneratePeer(
+	defaultPeer = dsl.GeneratePeer(
 		v1alpha1.WireguardPeerSpec{
 			WireguardRef: defaultWireguard.GetName(),
+			Address:      "192.168.1.2/24",
 		}, v1alpha1.WireguardPeerStatus{PublicKey: toPtr("kekeke")},
 	)
 )
 
-func TestFactory(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "factory")
-}
-
-var _ = BeforeSuite(func() {
+func TestMain(m *testing.M) {
 	scheme = runtime.NewScheme()
 	err := v1alpha1.AddToScheme(scheme)
-	Expect(err).To(BeNil())
+	if err != nil {
+		log.Fatalf("cannot setup scheme: %v", err)
+	}
 
-	wireguardFactory = Wireguard{
+	defaultWgFact = Wireguard{
 		Scheme:    scheme,
 		Wireguard: defaultWireguard,
 		Peers: v1alpha1.WireguardPeerList{
 			Items: []v1alpha1.WireguardPeer{defaultPeer},
 		},
 	}
-	peerFactory = Peer{
+	defaultPeerFact = Peer{
 		Scheme:    scheme,
 		Peer:      defaultPeer,
 		Wireguard: defaultWireguard,
 	}
-})
 
-func shouldHaveProperDecorations(obj metav1.Object) {
+	os.Exit(m.Run())
+}
+
+func shouldHaveProperDecorations(t *testing.T, obj metav1.Object) {
+	t.Helper()
+
 	annotations := obj.GetAnnotations()
-	Expect(annotations).To(HaveKey(lastAppliedAnnotation))
-	Expect(annotations[lastAppliedAnnotation]).ToNot(BeEmpty())
-	Expect(obj.GetOwnerReferences()).To(HaveLen(1))
+	assert.Contains(t, annotations, lastAppliedAnnotation)
+	assert.NotEmpty(t, annotations[lastAppliedAnnotation])
+	assert.Len(t, obj.GetOwnerReferences(), 1)
 }

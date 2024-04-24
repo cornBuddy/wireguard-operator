@@ -1,154 +1,91 @@
 ---
-
 name: Acceptance tests
 on:
-  pull_request:
-    branches: [main]
+  workflow_run:
+    workflows: ["Commit checks"]
+    branches: [develop]
     types:
-      - labeled
-      - unlabeled
-      - synchronize
-      - opened
-      - edited
-      - ready_for_review
-      - reopened
-      - unlocked
-  pull_request_review:
-    types: [submitted]
-  check_suite:
-    types: [completed]
+      - completed
+
 
 concurrency:
-  group: "acceptance-${{ github.event.repository.name }}"
+  group: "deployment-pipeline-${{ github.event.repository.name }}"
 
 env:
   TEST_CLUSTER_NAME: test
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
 
 jobs:
-  disapprove-pull-request:
-    name: Remove pull request approval if exists
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: >-
-          gh pr review "${{ github.event.number }}"
-          --request-changes
-          --body "waiting tests to succeed"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   prepare-env:
-    name: Prepare test environment
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: fetch IaC sources
-        uses: actions/checkout@v4
-        with:
-          repository: ahova/terragrunt
-          ssh-key: ${{ secrets.PRIVATE_KEY }}
-          path: terragrunt
-      - uses: ./.github/actions/iac-toolset
-        with:
-          private_key: ${{ secrets.PRIVATE_KEY }}
-      - name: prepare test env
-        run: >-
-          terragrunt run-all apply -auto-approve --terragrunt-non-interactive
-        working-directory: >-
-          terragrunt/aws/ahova-vpn-dev/clusters/${{ env.TEST_CLUSTER_NAME }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
-      - uses: actions-ecosystem/action-get-latest-tag@v1
-        id: get-latest-tag
-      - uses: actions/setup-go@v3
-        with:
-          go-version: 'stable'
-          check-latest: true
-      - name: deploy app to cluster
-        run: make deploy
-        env:
-          IMG_BASE: >-
-            478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
-          TAG: "${{ steps.get-latest-tag.outputs.tag }}"
-
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs:
-      - prepare-env
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 'stable'
+          check-latest: true
       - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
+      - name: calculate tag for docker image
+        uses: mathieudutour/github-tag-action@v6.1
+        id: tag
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+      - run: make deploy
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+          IMG_BASE: >-
+            478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
+          TAG: ${{ steps.tag.outputs.previous_tag }}
+
+  acceptance:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs:
+      - prepare-env
+    steps:
+      - uses: actions/checkout@v4
+      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
       - run: make smoke
 
-  teardown-env:
-    name: Tear down test environment
+  clean-env:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }} && always()
     needs:
-      - test
-    if: always()
+      - acceptance
     steps:
       - uses: actions/checkout@v4
-      - name: fetch IaC sources
-        uses: actions/checkout@v4
-        with:
-          repository: ahova/terragrunt
-          ssh-key: ${{ secrets.PRIVATE_KEY }}
-          path: terragrunt
-      - uses: ./.github/actions/iac-toolset
-        with:
-          private_key: ${{ secrets.PRIVATE_KEY }}
-      - name: destroy test env
-        run: >-
-          terragrunt run-all destroy -auto-approve --terragrunt-non-interactive
-        working-directory: >-
-          terragrunt/aws/ahova-vpn-dev/clusters/${{ env.TEST_CLUSTER_NAME }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-
-  approve-pull-request:
-    name: Approve pull request
-    runs-on: ubuntu-latest
-    needs:
-      - test
-    steps:
-      - uses: actions/checkout@v4
-      - run: gh pr review "${{ github.event.number }}" --approve
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
+      - run: make undeploy
 
   release:
-    name: Release
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     needs:
-      - test
+      - acceptance
     steps:
       - uses: actions/checkout@v4
+      - name: get PR number
+        id: pr
+        run: |
+          echo "PR_NUMBER=$(gh pr view develop --json number --jq)"
+          >> $GITHUB_OUTPUT
       - uses: thollander/actions-comment-pull-request@v2
         with:
           message: "/fast-forward"
+          pr_number: "${{ steps.pr.outputs.PR_NUMBER }}"
           GITHUB_TOKEN: "${{ secrets.PAT_TOKEN }}"
 
   close-issue:
-    name: Close issue
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     needs:
-      - test
+      - acceptance
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/close-issue

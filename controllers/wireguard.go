@@ -2,11 +2,7 @@ package controllers
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
-	"fmt"
 
-	"github.com/cisco-open/k8s-objectmatcher/patch"
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -47,6 +44,7 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		WithName("wireguard").
 		WithValues("Name", req.Name, "Namespace", req.Namespace)
 
+	// Wireguard
 	wireguard := &v1alpha1.Wireguard{}
 	err := r.Get(ctx, req.NamespacedName, wireguard)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -62,48 +60,54 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	log.Info("Successfully read wireguard from cluster")
 
+	// WireguardPeers
 	peers, err := r.getPeers(ctx, wireguard)
 	if err != nil {
 		log.Error(err, "Cannot list related peers")
 		return ctrl.Result{}, err
 	}
-	log.Info("Peers list is fetched")
+	log.Info("Peers list is fetched", "peers", peers.Items)
 
+	requeue := ctrl.Result{Requeue: true}
 	fact := factory.Wireguard{
 		Scheme:    r.Scheme,
 		Wireguard: *wireguard,
 		Peers:     peers,
 	}
+
+	// Service
 	service, err := fact.Service()
 	if err != nil {
 		log.Error(err, "Cannot generate service")
 		return ctrl.Result{}, err
 	}
 
-	if applied, err := r.apply(ctx, service); err != nil {
+	if applied, err := apply(ctx, r, service); err != nil {
 		log.Error(err, "Cannot apply service")
 		return ctrl.Result{}, err
 	} else if applied {
 		log.Info("Service applied successfully")
-		return ctrl.Result{}, nil
+		return requeue, nil
 	}
-	log.Info("Service is applied already")
+	log.Info("Service is up to date")
 
+	// ConfigMap
 	cm, err := fact.ConfigMap()
 	if err != nil {
 		log.Error(err, "Cannot generate configmap")
 		return ctrl.Result{}, err
 	}
 
-	if applied, err := r.apply(ctx, cm); err != nil {
+	if applied, err := apply(ctx, r, cm); err != nil {
 		log.Error(err, "Cannot apply configmap")
 		return ctrl.Result{}, err
 	} else if applied {
 		log.Info("Configmap applied successfully")
-		return ctrl.Result{}, nil
+		return requeue, nil
 	}
-	log.Info("Config map is applied already")
+	log.Info("Config map is up to date")
 
+	// Secret
 	var privateKey, publicKey string
 	currentSecret := &corev1.Secret{}
 	key := types.NamespacedName{
@@ -126,12 +130,45 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		log.Error(err, "Cannot fetch corresponding secret from cluster")
 		return ctrl.Result{}, err
 	} else {
-		// assuming that secret exists
+		// secret exists, so let's read keys from it
 		privateKey = string(currentSecret.Data["private-key"])
 		publicKey = string(currentSecret.Data["public-key"])
 	}
 	log.Info("Keypair is set")
 
+	desiredSecret, err := fact.Secret(publicKey, privateKey)
+	if err != nil {
+		log.Error(err, "Cannot generate secret")
+		return ctrl.Result{}, err
+	}
+
+	if applied, err := apply(ctx, r, desiredSecret); err != nil {
+		log.Error(err, "Cannot apply secret")
+		return ctrl.Result{}, err
+	} else if applied {
+		log.Info("Secret applied successfully")
+		return ctrl.Result{}, nil
+	}
+	log.Info("Secret is up to date")
+
+	// Deployment
+	configHash := makeHash(desiredSecret.Data["config"])
+	deploy, err := fact.Deployment(configHash)
+	if err != nil {
+		log.Error(err, "Cannot generate deployment")
+		return ctrl.Result{}, err
+	}
+
+	if applied, err := apply(ctx, r, deploy); err != nil {
+		log.Error(err, "Cannot apply deployment")
+		return ctrl.Result{}, err
+	} else if applied {
+		log.Info("Deployment applied successfully")
+		return requeue, nil
+	}
+	log.Info("Deployment is up to date")
+
+	// Status
 	if err := r.Get(ctx, req.NamespacedName, service); err != nil {
 		log.Error(err, "Cannot read service from the cluster")
 		return ctrl.Result{}, err
@@ -144,39 +181,13 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	} else if err != nil {
 		log.Error(err, "Cannot extract endpoint from service")
-		return ctrl.Result{}, err
+		return requeue, err
 	}
 
-	desiredSecret, err := fact.Secret(publicKey, privateKey)
-	if err != nil {
-		log.Error(err, "Cannot generate secret")
+	if err := r.Get(ctx, req.NamespacedName, wireguard); err != nil {
+		log.Error(err, "Failed to get wireguard peer")
 		return ctrl.Result{}, err
 	}
-
-	if applied, err := r.apply(ctx, desiredSecret); err != nil {
-		log.Error(err, "Cannot apply secret")
-		return ctrl.Result{}, err
-	} else if applied {
-		log.Info("Secret applied successfully")
-		return ctrl.Result{}, nil
-	}
-	log.Info("Secret is applied")
-
-	configHash := makeHash(desiredSecret.Data["config"])
-	deploy, err := fact.Deployment(configHash)
-	if err != nil {
-		log.Error(err, "Cannot generate deployment")
-		return ctrl.Result{}, err
-	}
-
-	if created, err := r.apply(ctx, deploy); err != nil {
-		log.Error(err, "Cannot apply deployment")
-		return ctrl.Result{}, err
-	} else if created {
-		log.Info("Deployment applied successfully")
-		return ctrl.Result{}, nil
-	}
-	log.Info("Deployment is applied already")
 
 	wireguard.Status = v1alpha1.WireguardStatus{
 		Endpoint:  ep,
@@ -221,71 +232,4 @@ func (r *WireguardReconciler) getPeers(
 	}
 
 	return peers, nil
-}
-
-// creates or updates resource. returns true when created or updated
-func (r *WireguardReconciler) apply(
-	ctx context.Context, desired client.Object) (bool, error) {
-	var current client.Object
-	switch v := desired.(type) {
-	case *corev1.Service:
-		current = &corev1.Service{}
-	case *corev1.ConfigMap:
-		current = &corev1.ConfigMap{}
-	case *corev1.Secret:
-		current = &corev1.Secret{}
-	case *appsv1.Deployment:
-		current = &appsv1.Deployment{}
-	case nil:
-		return false, fmt.Errorf("desired cannot be nil")
-	default:
-		return false, fmt.Errorf("unsupported type %s for desired", v)
-	}
-
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	err := r.Get(ctx, key, current)
-	unexpectedError := err != nil && !apierrors.IsNotFound(err)
-	if unexpectedError {
-		return false, err
-	}
-
-	objectNotExists := apierrors.IsNotFound(err)
-	if objectNotExists {
-		if err := r.Create(ctx, desired); err != nil {
-			return false, err
-		}
-
-		// resource is created, get back to reconcilation
-		return true, nil
-	}
-
-	patchMaker := patch.DefaultPatchMaker
-	opts := []patch.CalculateOption{
-		patch.IgnoreField("metadata"),
-	}
-	patchResult, err := patchMaker.Calculate(current, desired, opts...)
-	if err != nil {
-		return false, err
-	}
-
-	// nothing to update, get back to reconcilation
-	if patchResult.IsEmpty() {
-		return false, nil
-	}
-
-	if err := r.Update(ctx, desired); err != nil {
-		return false, err
-	}
-
-	// resource is updated, get back to reconcilation
-	return true, nil
-}
-
-func makeHash(data []byte) string {
-	hash := sha1.New()
-	hash.Write(data)
-	return hex.EncodeToString(hash.Sum(nil))
 }

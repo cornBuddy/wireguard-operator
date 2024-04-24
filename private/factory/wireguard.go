@@ -25,6 +25,22 @@ const (
 
 	configHashAnnotation  = "vpn.ahova.com/config-hash"
 	lastAppliedAnnotation = "vpn.ahova.com/last-applied"
+
+	entrypointSh = `#!/bin/sh
+set -e
+
+finish () {
+	echo "$(date): Shutting down Wireguard"
+	wg-quick down wg0
+	exit 0
+}
+
+trap finish TERM INT QUIT
+echo "$(date): Starting up Wireguard"
+wg-quick up wg0
+
+echo "Wireguard started, sleeping..."
+sleep infinity`
 )
 
 var (
@@ -52,7 +68,7 @@ func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 	case corev1.ServiceTypeClusterIP:
 		address = svc.Spec.ClusterIP
 	case corev1.ServiceTypeLoadBalancer:
-		address = svc.Spec.ClusterIP
+		address = fact.extractEndpointFromLoadBalancer(svc)
 	default:
 		return nil, fmt.Errorf("unsupported service type")
 	}
@@ -99,7 +115,8 @@ func (fact Wireguard) ConfigMap() (*corev1.ConfigMap, error) {
 			Namespace: fact.Wireguard.GetNamespace(),
 		},
 		Data: map[string]string{
-			"unbound.conf": unboundConf,
+			"unbound.conf":  unboundConf,
+			"entrypoint.sh": entrypointSh,
 		},
 	}
 
@@ -116,6 +133,14 @@ func (fact Wireguard) ConfigMap() (*corev1.ConfigMap, error) {
 
 func (fact Wireguard) Service() (*corev1.Service, error) {
 	wg := fact.Wireguard
+
+	var externalTrafficPolicy corev1.ServiceExternalTrafficPolicy
+	if wg.Spec.ServiceType == corev1.ServiceTypeLoadBalancer {
+		externalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
+	} else {
+		externalTrafficPolicy = ""
+	}
+
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        wg.GetName(),
@@ -130,6 +155,7 @@ func (fact Wireguard) Service() (*corev1.Service, error) {
 				Protocol: "UDP",
 				Port:     wireguardPort,
 			}},
+			ExternalTrafficPolicy: externalTrafficPolicy,
 		},
 	}
 
@@ -158,13 +184,14 @@ func (fact Wireguard) Secret(pubKey, privKey string) (*corev1.Secret, error) {
 			continue
 		}
 
+		allowedIPs := peer.Spec.Address
 		wireguardPeers = append(wireguardPeers, serverPeer{
-			PublicKey: *peer.Status.PublicKey,
-			Address:   peer.Spec.Address,
+			PublicKey:  *peer.Status.PublicKey,
+			AllowedIPs: allowedIPs,
 		})
 	}
 	spec := serverConfig{
-		Address:           fact.Wireguard.Spec.Network,
+		Address:           fact.Wireguard.Spec.Address,
 		PrivateKey:        string(privKey),
 		ListenPort:        wireguardPort,
 		DropConnectionsTo: fact.Wireguard.Spec.DropConnectionsTo,
@@ -219,6 +246,7 @@ func (fact Wireguard) deployment(configHash string) appsv1.Deployment {
 	wireguardContainer := corev1.Container{
 		Image:           wireguardImage,
 		Name:            "wireguard",
+		Command:         []string{"/opt/bin/entrypoint.sh"},
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		VolumeMounts:    mounts.wireguard,
 		SecurityContext: &corev1.SecurityContext{
@@ -370,7 +398,7 @@ type containerMounts struct {
 
 func getVolumes(wireguard v1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
 	volumes := []corev1.Volume{{
-		Name: "wireguard-config",
+		Name: "config",
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
 				SecretName: wireguard.Name,
@@ -380,12 +408,29 @@ func getVolumes(wireguard v1alpha1.Wireguard) ([]corev1.Volume, containerMounts)
 				}},
 			},
 		},
+	}, {
+		Name: "entrypoint",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: wireguard.Name,
+				},
+				Items: []corev1.KeyToPath{{
+					Key:  "entrypoint.sh",
+					Path: "entrypoint.sh",
+					Mode: toPtr[int32](0755),
+				}},
+			},
+		},
 	}}
 	mounts := containerMounts{
 		unbound: []corev1.VolumeMount{},
 		wireguard: []corev1.VolumeMount{{
-			Name:      "wireguard-config",
-			MountPath: "/config",
+			Name:      "config",
+			MountPath: "/etc/wireguard",
+		}, {
+			Name:      "entrypoint",
+			MountPath: "/opt/bin",
 		}},
 	}
 
@@ -452,19 +497,18 @@ func getLabels(name string) map[string]string {
 func toPtr[V any](o V) *V { return &o }
 
 type serverPeer struct {
-	PublicKey string
-	Address   string
+	PublicKey  string
+	AllowedIPs v1alpha1.Address
 }
 
 type serverConfig struct {
-	Address           string
+	Address           v1alpha1.Address
 	PrivateKey        string
 	ListenPort        int32
 	DropConnectionsTo []string
 	Peers             []serverPeer
 }
 
-// represents go-template for the server config
 const serverConfigTemplate = `[Interface]
 Address = {{ .Address }}
 PrivateKey = {{ .PrivateKey }}
@@ -479,8 +523,7 @@ SaveConfig = false
 {{ range .Peers }}
 [Peer]
 PublicKey = {{ .PublicKey }}
-AllowedIPs = {{ .Address }}/32
-PersistentKeepalive = 25
+AllowedIPs = {{ .AllowedIPs }}
 {{ end }}`
 
 // template of the unbound config
@@ -496,8 +539,8 @@ server:
 	max-udp-size: 3072
 	access-control: 0.0.0.0/0 refuse
 	access-control: 127.0.0.1 allow
-	access-control: {{ .Network }} allow
-	private-address: {{ .Network }}
+	access-control: {{ .Address }} allow
+	private-address: {{ .Address }}
 	hide-identity: yes
 	hide-version: yes
 	harden-glue: yes

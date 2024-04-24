@@ -1,76 +1,98 @@
 package factory
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"fmt"
+	"testing"
+
+	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova-vpn/wireguard-operator/test/dsl"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
-	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = Describe("Peer#Secret", func() {
-	It("should have proper decorations", func() {
-		secret, err := peerFactory.Secret("kekeke")
-		Expect(err).To(BeNil())
-		shouldHaveProperDecorations(secret)
-	})
+func TestPeerDefaultConfigurations(t *testing.T) {
+	t.Parallel()
 
-	It("should autogenerate keys by default", func() {
-		secret, err := peerFactory.Secret("kekeke")
-		Expect(err).To(BeNil())
-		Expect(secret).ToNot(BeNil())
+	key, err := wgtypes.GeneratePrivateKey()
+	assert.Nil(t, err)
 
-		Expect(secret.GetName()).To(Equal(defaultPeer.GetName()))
-		Expect(secret.GetNamespace()).To(Equal(defaultPeer.GetNamespace()))
+	ep := "127.0.0.1:51820"
+	wantPrivKey := key.String()
+	wantPubKey := key.PublicKey().String()
+	secret, err := defaultPeerFact.Secret(ep, wantPubKey, wantPrivKey)
+	assert.Nil(t, err)
 
-		Expect(secret.Data).To(HaveKey("config"))
-		Expect(secret.Data).To(HaveKey("public-key"))
-		Expect(secret.Data).To(HaveKey("private-key"))
+	assert.Contains(t, secret.Data, "private-key")
+	assert.Contains(t, secret.Data, "public-key")
+	assert.Equal(t, string(secret.Data["private-key"]), wantPrivKey)
+	assert.Equal(t, string(secret.Data["public-key"]), wantPubKey)
 
-		Expect(secret.Data["config"]).ToNot(BeEmpty())
-		Expect(secret.Data["public-key"]).ToNot(BeEmpty())
-		Expect(secret.Data["private-key"]).ToNot(BeEmpty())
+	gotPubKey := string(secret.Data["public-key"])
+	assert.Equal(t, wantPubKey, gotPubKey)
 
-		key, err := wgtypes.ParseKey(string(secret.Data["private-key"]))
-		Expect(err).To(BeNil())
-		wantPubKey := string(secret.Data["public-key"])
-		Expect(key.PublicKey().String()).To(Equal(wantPubKey))
-	})
+	config := string(secret.Data["config"])
+	assert.NotEmpty(t, config)
 
-	It("should not autogenerate keys when peer.spec.publicKey is set", func() {
-		key, err := wgtypes.GeneratePrivateKey()
-		Expect(err).To(BeNil())
+	peerSpec := defaultPeerFact.Peer.Spec
+	wgStatus := defaultPeerFact.Wireguard.Status
+	configLines := []string{
+		"PersistentKeepalive = 25",
+		"DNS = 127.0.0.1",
+		"AllowedIPs = 0.0.0.0/0",
+		fmt.Sprintf("Endpoint = %s", ep),
+		fmt.Sprintf("PrivateKey = %s", wantPrivKey),
+		fmt.Sprintf("Address = %s", peerSpec.Address),
+		fmt.Sprintf("PublicKey = %s", *wgStatus.PublicKey),
+	}
+	for _, line := range configLines {
+		assert.Contains(t, config, line)
+	}
+}
 
-		publicKey := key.PublicKey().String()
-		peer := testdsl.GeneratePeer(v1alpha1.WireguardPeerSpec{
-			PublicKey: &publicKey,
-		}, v1alpha1.WireguardPeerStatus{PublicKey: &publicKey})
-		wireguard := testdsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{},
-			v1alpha1.WireguardStatus{
-				Endpoint:  toPtr("kekeke"),
-				PublicKey: toPtr("kekeke"),
-			},
-		)
-		fact := Peer{
-			Scheme:    scheme,
-			Peer:      peer,
-			Wireguard: wireguard,
-		}
-		secret, err := fact.Secret("kekeke")
-		Expect(err).To(BeNil())
-		Expect(secret).ToNot(BeNil())
+func TestPeerKeyIsProvided(t *testing.T) {
+	t.Parallel()
 
-		Expect(secret.GetName()).To(Equal(peer.GetName()))
-		Expect(secret.GetNamespace()).To(Equal(peer.GetNamespace()))
+	key, err := wgtypes.GeneratePrivateKey()
+	assert.Nil(t, err)
 
-		Expect(secret.Data).To(HaveKey("public-key"))
-		Expect(secret.Data["public-key"]).ToNot(BeEmpty())
-		Expect(string(secret.Data["public-key"])).To(Equal(publicKey))
+	publicKey := key.PublicKey().String()
+	peer := dsl.GeneratePeer(v1alpha1.WireguardPeerSpec{
+		PublicKey: &publicKey,
+	}, v1alpha1.WireguardPeerStatus{PublicKey: &publicKey})
+	wireguard := dsl.GenerateWireguard(
+		v1alpha1.WireguardSpec{},
+		v1alpha1.WireguardStatus{
+			Endpoint:  toPtr("kekeke"),
+			PublicKey: toPtr("kekeke"),
+		},
+	)
+	fact := Peer{
+		Scheme:    scheme,
+		Peer:      peer,
+		Wireguard: wireguard,
+	}
+	secret, err := fact.Secret("kekeke", "kekeke", "kekeke")
+	assert.Nil(t, err)
+	assert.NotEmpty(t, secret, "should produce secret")
 
-		Expect(secret.Data).ToNot(HaveKey("config"))
-		Expect(secret.Data).ToNot(HaveKey("private-key"))
-	})
-})
+	assert.Equal(t, peer.GetName(), secret.GetName())
+	assert.Equal(t, peer.GetNamespace(), secret.GetNamespace())
+
+	assert.Contains(t, secret.Data, "public-key")
+	assert.NotEmpty(t, secret.Data["public-key"])
+	assert.Equal(t, publicKey, string(secret.Data["public-key"]))
+
+	assert.NotContains(t, secret.Data, "config")
+	assert.NotContains(t, secret.Data, "private-key")
+}
+
+func TestPeerDecorations(t *testing.T) {
+	t.Parallel()
+
+	secret, err := defaultPeerFact.Secret("kekeke", "kekeke", "kekeke")
+	assert.Nil(t, err)
+
+	shouldHaveProperDecorations(t, secret)
+}

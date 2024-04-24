@@ -2,119 +2,258 @@ package factory
 
 import (
 	"fmt"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
-	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
-	"k8s.io/api/core/v1"
+	"testing"
 
 	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-	"github.com/ahova-vpn/wireguard-operator/private/testdsl"
+	"github.com/ahova-vpn/wireguard-operator/test/dsl"
+
+	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/poy/onpar"
+	"github.com/stretchr/testify/assert"
 )
 
-var _ = Describe("Wireguard#ExtractEndpoint", func() {
+func TestWireguardResourcesShouldHaveProperDecorations(t *testing.T) {
+	t.Parallel()
+
+	secret, err := defaultWgFact.Secret("kekeke", "kekeke")
+	assert.Nil(t, err)
+
+	deploy, err := defaultWgFact.Deployment("kekeke")
+	assert.Nil(t, err)
+
+	configMap, err := defaultWgFact.ConfigMap()
+	assert.Nil(t, err)
+
+	service, err := defaultWgFact.Service()
+	assert.Nil(t, err)
+
+	var resources []metav1.Object = []metav1.Object{
+		secret, deploy, configMap, service,
+	}
+	for _, resource := range resources {
+		shouldHaveProperDecorations(t, resource)
+	}
+
+}
+
+func TestWireguardExtractEndpoint(t *testing.T) {
+	t.Parallel()
+
 	clusterIp := "172.168.14.88"
-	wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
-	svc := v1.Service{
-		Spec: v1.ServiceSpec{
+	clusterIpSvc := corev1.Service{
+		Spec: corev1.ServiceSpec{
 			ClusterIP: clusterIp,
 		},
 	}
+	hostname := "localhost"
+	loadBalancerSvc := corev1.Service{
+		Spec: corev1.ServiceSpec{
+			ClusterIP: clusterIp,
+		},
+		Status: corev1.ServiceStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{{
+					Hostname: hostname,
+				}},
+			},
+		},
+	}
 
-	It("should return error when service type is NodePort", func() {
-		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			ServiceType: v1.ServiceTypeNodePort,
+	wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
+	gotEp, err := defaultWgFact.ExtractEndpoint(clusterIpSvc)
+	assert.Nil(t, err)
+	assert.Equal(t, wantEp, *gotEp, "should return cluster ip by default")
+
+	wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+		ServiceType: corev1.ServiceTypeNodePort,
+	}, v1alpha1.WireguardStatus{})
+	fact := Wireguard{
+		Scheme:    scheme,
+		Wireguard: wg,
+		Peers:     v1alpha1.WireguardPeerList{},
+	}
+	_, err = fact.ExtractEndpoint(clusterIpSvc)
+	assert.Error(t, err,
+		"should return error when service type is NodePort")
+
+	wg = dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+		ServiceType: corev1.ServiceTypeLoadBalancer,
+	}, v1alpha1.WireguardStatus{})
+	fact = Wireguard{
+		Scheme:    scheme,
+		Wireguard: wg,
+		Peers:     v1alpha1.WireguardPeerList{},
+	}
+	wantEp = fmt.Sprintf("%s:%d", hostname, wireguardPort)
+	gotEp, err = fact.ExtractEndpoint(loadBalancerSvc)
+	assert.Nil(t, err)
+	assert.Equal(t, wantEp, *gotEp,
+		"should return hostname when serviceType == LoadBalancer")
+}
+
+func TestWireguardConfigMap(t *testing.T) {
+	t.Parallel()
+
+	configMap, err := defaultWgFact.ConfigMap()
+	assert.Nil(t, err)
+	assert.NotNil(t, configMap)
+
+	data := configMap.Data
+	assert.Contains(t, data, "unbound.conf")
+	assert.Contains(t, data, "entrypoint.sh")
+	assert.NotEmpty(t, data["unbound.conf"])
+	assert.NotEmpty(t, data["entrypoint.sh"])
+
+	ep := data["entrypoint.sh"]
+	assert.Contains(t, ep, "set -e")
+	assert.Contains(t, ep, "wg-quick up")
+	assert.Contains(t, ep, "wg-quick down")
+
+}
+
+func TestWireguardService(t *testing.T) {
+	t.Parallel()
+
+	o := onpar.New(t)
+	defer o.Run()
+
+	o.Spec("should work by default", func(t *testing.T) {
+		svc, err := defaultWgFact.Service()
+		assert.Nil(t, err)
+		assert.NotEmpty(t, svc)
+		assert.Empty(t, svc.Spec.ExternalTrafficPolicy)
+		assert.Equal(t, corev1.ServiceTypeClusterIP, svc.Spec.Type)
+	})
+
+	o.Spec("should have proper traffic policy when load balancer", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: corev1.ServiceTypeLoadBalancer,
 		}, v1alpha1.WireguardStatus{})
 		fact := Wireguard{
 			Scheme:    scheme,
 			Wireguard: wg,
-			Peers:     v1alpha1.WireguardPeerList{},
+			Peers: v1alpha1.WireguardPeerList{
+				Items: []v1alpha1.WireguardPeer{defaultPeer},
+			},
 		}
-		_, err := fact.ExtractEndpoint(svc)
-		Expect(err).ToNot(BeNil())
+		svc, err := fact.Service()
+		assert.Nil(t, err)
+		assert.Equal(t, corev1.ServiceTypeLoadBalancer, svc.Spec.Type)
+
+		etp := svc.Spec.ExternalTrafficPolicy
+		assert.Equal(t, corev1.ServiceExternalTrafficPolicyLocal, etp)
 	})
 
-	It("should return cluster ip by default", func() {
-		gotEp, err := wireguardFactory.ExtractEndpoint(svc)
-		Expect(err).To(BeNil())
-		Expect(*gotEp).To(Equal(wantEp))
-	})
+	type testCase struct {
+		description           string
+		wireguard             v1alpha1.Wireguard
+		serviceAnnotationsLen int
+	}
 
-	It("should return cluster ip when serviceType == LoadBalancer", func() {
-		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			ServiceType: v1.ServiceTypeLoadBalancer,
-		}, v1alpha1.WireguardStatus{})
+	testCases := []testCase{{
+		description: "no extra annotations",
+		wireguard: dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{},
+			v1alpha1.WireguardStatus{},
+		),
+		serviceAnnotationsLen: 1,
+	}, {
+		description: "extra annotation",
+		wireguard: dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{
+				ServiceAnnotations: map[string]string{
+					"top": "lel",
+				},
+			},
+			v1alpha1.WireguardStatus{},
+		),
+		serviceAnnotationsLen: 2,
+	}}
+
+	spec := onpar.TableSpec(o, func(t *testing.T, test testCase) {
 		fact := Wireguard{
 			Scheme:    scheme,
-			Wireguard: wg,
+			Wireguard: test.wireguard,
 			Peers:     v1alpha1.WireguardPeerList{},
 		}
-		gotEp, err := fact.ExtractEndpoint(svc)
-		Expect(err).To(BeNil())
-		Expect(*gotEp).To(Equal(wantEp))
+		svc, err := fact.Service()
+		assert.Nil(t, err)
+
+		actual := svc.ObjectMeta.Annotations
+		assert.Len(t, actual, test.serviceAnnotationsLen)
+
+		for key, value := range test.wireguard.Spec.ServiceAnnotations {
+			assert.Contains(t, actual, key)
+			assert.Equal(t, actual[key], value)
+		}
 	})
-})
 
-var _ = Describe("Wireguard#ConfigMap", func() {
-	It("should return valid configmap by default", func() {
-		configMap, err := wireguardFactory.ConfigMap()
-		Expect(err).To(BeNil())
-		Expect(configMap).ToNot(BeNil())
-		shouldHaveProperDecorations(configMap)
+	for _, tc := range testCases {
+		spec.Entry(tc.description, tc)
+	}
+}
 
-		data := configMap.Data
-		Expect(data).To(HaveKey("unbound.conf"))
-		Expect(data["unbound.conf"]).ToNot(BeEmpty())
+func TestWireguardSecret(t *testing.T) {
+	t.Parallel()
 
-	})
-})
+	o := onpar.New(t)
+	defer o.Run()
 
-var _ = Describe("Wireguard#Service", func() {
-	It("should return valid service by default", func() {
-		service, err := wireguardFactory.Service()
-		Expect(err).To(BeNil())
-		Expect(service).ToNot(BeNil())
-		shouldHaveProperDecorations(service)
-	})
-})
+	key, err := wgtypes.GeneratePrivateKey()
+	assert.Nil(t, err)
 
-var _ = Describe("Wireguard#Secret", func() {
-	It("should return valid secret by default", func() {
-		key, err := wgtypes.GeneratePrivateKey()
-		Expect(err).To(BeNil())
+	wantPrivKey := key.String()
+	wantPubKey := key.PublicKey().String()
 
-		wantPrivKey := key.String()
-		wantPubKey := key.PublicKey().String()
-		secret, err := wireguardFactory.Secret(wantPubKey, wantPrivKey)
-		Expect(err).To(BeNil())
-		shouldHaveProperDecorations(secret)
+	o.Spec("should generate proper secret by default", func(t *testing.T) {
+		secret, err := defaultWgFact.Secret(wantPubKey, wantPrivKey)
+		assert.Nil(t, err)
 
-		Expect(secret.Data).To(HaveKey("public-key"))
-		Expect(secret.Data).To(HaveKey("private-key"))
-		Expect(secret.Data).To(HaveKey("config"))
+		data := secret.Data
+		keys := []string{"public-key", "private-key", "config"}
+		for _, key := range keys {
+			assert.Contains(t, data, key)
+		}
+
+		config := string(data["config"])
+		assert.NotEmpty(t, config)
+		assert.Contains(t, config, wantPrivKey)
+		assert.NotContains(t, config, "PersistentKeepalive")
+
+		wg := defaultWireguard
+		lines := []string{
+			fmt.Sprintf("Address = %s", wg.Spec.Address),
+			fmt.Sprintf("PrivateKey = %s", wantPrivKey),
+			fmt.Sprintf("ListenPort = %d", wireguardPort),
+			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 192.168.0.0/16 --jump DROP",
+			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 172.16.0.0/12 --jump DROP",
+			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 10.0.0.0/8 --jump DROP",
+			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 169.254.169.254/32 --jump DROP",
+			"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
+			"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
+			"PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
+		}
+
+		for _, line := range lines {
+			assert.Contains(t, config, line)
+		}
 
 		gotPrivKey := string(secret.Data["private-key"])
 		gotPubKey := string(secret.Data["public-key"])
-		Expect(gotPrivKey).To(Equal(wantPrivKey))
-		Expect(gotPubKey).To(Equal(wantPubKey))
-
-		config := string(secret.Data["config"])
-		Expect(config).ToNot(BeEmpty())
-		Expect(config).To(ContainSubstring(wantPrivKey))
+		assert.Equal(t, wantPrivKey, gotPrivKey)
+		assert.Equal(t, wantPubKey, gotPubKey)
 	})
 
-	It("should skip peers with empty public key in status", func() {
-		key, err := wgtypes.GeneratePrivateKey()
-		Expect(err).To(BeNil())
-
-		wg := testdsl.GenerateWireguard(
+	o.Spec("should skip peer if it's not ready", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{},
 			v1alpha1.WireguardStatus{},
 		)
-		peerAddr := "192.168.420.228"
-		peer := testdsl.GeneratePeer(
+		peerAddr := v1alpha1.Address("192.168.420.228/42")
+		notReadyPeer := dsl.GeneratePeer(
 			v1alpha1.WireguardPeerSpec{
 				WireguardRef: wg.GetName(),
 				Address:      peerAddr,
@@ -124,62 +263,120 @@ var _ = Describe("Wireguard#Secret", func() {
 			Scheme:    scheme,
 			Wireguard: wg,
 			Peers: v1alpha1.WireguardPeerList{
-				Items: []v1alpha1.WireguardPeer{peer},
+				Items: []v1alpha1.WireguardPeer{notReadyPeer},
 			},
 		}
-
-		wantPrivKey := key.String()
-		wantPubKey := key.PublicKey().String()
 		secret, err := fact.Secret(wantPubKey, wantPrivKey)
-		Expect(err).To(BeNil())
-		Expect(secret).ToNot(BeNil())
-		Expect(secret.Data).To(HaveKey("config"))
+		assert.Nil(t, err)
+		assert.NotNil(t, secret)
+		assert.Contains(t, secret.Data, "config")
 
 		config := string(secret.Data["config"])
-		Expect(config).ToNot(ContainSubstring(peerAddr))
+		assert.NotContains(t, config, peerAddr,
+			"should skip peers with empty public key in status")
 	})
-})
+}
 
-var _ = Describe("Wireguard#Deployment", func() {
+func TestWireguardDeployment(t *testing.T) {
+	t.Parallel()
+
+	o := onpar.New(t)
+	defer o.Run()
+
+	type testCase struct {
+		description string
+		wireguard   v1alpha1.Wireguard
+	}
+
+	testCases := []testCase{{
+		description: "default configuration",
+		wireguard: dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{},
+			v1alpha1.WireguardStatus{},
+		),
+	}, {
+		description: "internal dns configuration",
+		wireguard: dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			DNS: &v1alpha1.DNS{
+				DeployServer: false,
+				Address:      "127.0.0.1",
+			},
+		}, v1alpha1.WireguardStatus{}),
+	}}
+
 	hashStub := "kekeke"
 
-	It("should have proper decorations", func() {
-		deploy, err := wireguardFactory.Deployment(hashStub)
-		Expect(err).To(BeNil())
-		shouldHaveProperDecorations(deploy)
-	})
+	spec := onpar.TableSpec(o, func(t *testing.T, test testCase) {
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: test.wireguard,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
 
-	It("should not fail with default wireguard instance", func() {
-		deploy, err := wireguardFactory.Deployment(hashStub)
-		Expect(err).To(BeNil())
+		deploy, err := fact.Deployment(hashStub)
+		assert.Nil(t, err)
 
 		podSpec := deploy.Spec.Template.Spec
-		Expect(podSpec.Containers).To(HaveLen(2))
+		epMode := podSpec.Volumes[1].ConfigMap.Items[0].Mode
+		assert.Equal(t, toPtr[int32](0755), epMode)
 
-		dnsConfig := &v1.PodDNSConfig{
-			Nameservers: []string{"127.0.0.1"},
+		wgCont := podSpec.Containers[0]
+		assert.Equal(t, "wireguard", wgCont.Name)
+		assert.Len(t, wgCont.Command, 1)
+		assert.Contains(t, wgCont.Command, "/opt/bin/entrypoint.sh",
+			"should have proper entrypoint set")
+
+		wantContext := &corev1.SecurityContext{
+			Privileged: toPtr(true),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"NET_ADMIN",
+					"SYS_MODULE",
+				},
+			},
 		}
-		Expect(podSpec.DNSConfig).To(BeEquivalentTo(dnsConfig))
-		Expect(podSpec.DNSPolicy).To(Equal(v1.DNSNone))
+		wgContainer := deploy.Spec.Template.Spec.Containers[0]
+		assert.EqualValues(t, wantContext, wgContainer.SecurityContext)
+
+		gotSysctls := deploy.Spec.Template.Spec.SecurityContext.Sysctls
+		wantSysctls := []corev1.Sysctl{{
+			Name:  "net.ipv4.ip_forward",
+			Value: "1",
+		}, {
+			Name:  "net.ipv4.conf.all.src_valid_mark",
+			Value: "1",
+		}, {
+			Name:  "net.ipv4.conf.all.rp_filter",
+			Value: "0",
+		}, {
+			Name:  "net.ipv4.conf.all.route_localnet",
+			Value: "1",
+		}}
+		assert.EqualValues(t, wantSysctls, gotSysctls)
 	})
 
-	It("should deploy dns sidecar when wireguard.spec.dns.deployServer == true", func() {
-		deploy, err := wireguardFactory.Deployment(hashStub)
-		Expect(err).To(BeNil())
+	for _, tc := range testCases {
+		spec.Entry(tc.description, tc)
+	}
+
+	o.Spec("default dns config", func(t *testing.T) {
+		deploy, err := defaultWgFact.Deployment(hashStub)
+		assert.Nil(t, err)
 
 		podSpec := deploy.Spec.Template.Spec
-		dnsConfig := &v1.PodDNSConfig{
+		assert.Len(t, podSpec.Volumes, 3)
+		assert.Len(t, podSpec.Containers, 2)
+
+		wantDnsConfig := &corev1.PodDNSConfig{
 			Nameservers: []string{"127.0.0.1"},
 		}
-		Expect(podSpec.DNSConfig).To(BeEquivalentTo(dnsConfig))
-		Expect(podSpec.DNSPolicy).To(Equal(v1.DNSNone))
-
-		containers := podSpec.Containers
-		Expect(containers).To(HaveLen(2))
+		assert.EqualValues(t, wantDnsConfig, podSpec.DNSConfig)
+		assert.Equal(t, corev1.DNSNone, podSpec.DNSPolicy,
+			"should set proper DNS none policy by default")
 	})
 
-	It("should not deploy dns sidecar when wireguard.spec.dns.deployServer == false", func() {
-		wg := testdsl.GenerateWireguard(v1alpha1.WireguardSpec{
+	o.Spec("internal dns configuration", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
 			DNS: &v1alpha1.DNS{
 				DeployServer: false,
 				Address:      "127.0.0.1",
@@ -191,13 +388,16 @@ var _ = Describe("Wireguard#Deployment", func() {
 			Peers:     v1alpha1.WireguardPeerList{},
 		}
 		deploy, err := fact.Deployment(hashStub)
-		Expect(err).To(BeNil())
+		assert.Nil(t, err)
 
 		podSpec := deploy.Spec.Template.Spec
-		Expect(podSpec.DNSConfig).To(BeNil())
-		Expect(podSpec.DNSPolicy).To(Equal(v1.DNSClusterFirst))
+		assert.Nil(t, podSpec.DNSConfig)
+		assert.Equal(t, corev1.DNSClusterFirst, podSpec.DNSPolicy)
+		assert.Len(t, podSpec.Volumes, 2)
+		assert.Len(t, podSpec.Containers, 1)
 
 		containers := podSpec.Containers
-		Expect(containers).To(HaveLen(1))
+		assert.Len(t, containers, 1)
 	})
-})
+
+}

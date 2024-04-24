@@ -3,22 +3,20 @@ package spec
 import (
 	"bytes"
 	"context"
-	"io"
+	"fmt"
+	"math/rand"
 	"os"
+	"path"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"testing"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/strslice"
-	dockerClient "github.com/docker/docker/client"
+	"text/template"
+	"time"
 
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
@@ -27,123 +25,71 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/testcontainers/testcontainers-go/modules/compose"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
-	namespace      = "default"
-	wgSampleFile   = "../config/samples/wireguard.yaml"
-	peerSampleFile = "../config/samples/wireguardpeer.yaml"
-)
-
-var (
-	ctx = context.TODO()
+	namespace       = "default"
+	wgSampleFile    = "../config/samples/wireguard.yaml"
+	peerSampleFile  = "../config/samples/wireguardpeer.yaml"
+	wireguardImage  = "linuxserver/wireguard:1.0.20210914"
+	peerServiceName = "peer"
 )
 
 type Dsl struct {
-	T                   *testing.T
-	DockerClient        *dockerClient.Client
 	ApiExtensionsClient *clientset.Clientset
 	DynamicClient       *dynamic.DynamicClient
 	StaticClient        *kubernetes.Clientset
+	t                   *testing.T
 }
 
-// starts a process withing container with the given id, returns cmd output
-func (dsl Dsl) Exec(id string, cmd []string) (string, error) {
-	cli := dsl.DockerClient
-	execCfg := types.ExecConfig{
-		Cmd:          cmd,
-		Tty:          true,
-		AttachStdout: true,
-		Detach:       true,
-		AttachStdin:  true,
-	}
-	exec, err := cli.ContainerExecCreate(ctx, id, execCfg)
-	if err != nil {
-		return "", err
-	}
-	dsl.T.Log("exec created")
+func (dsl Dsl) StartPeerWithConfig(ctx context.Context, peerConfig string) (
+	compose.ComposeStack, error) {
 
-	execCheck := types.ExecStartCheck{}
-	attach, err := cli.ContainerExecAttach(ctx, exec.ID, execCheck)
-	if err != nil {
-		return "", err
-	}
-	defer attach.Close()
-	dsl.T.Log("exec attached")
-
-	buf := new(strings.Builder)
-	if _, err := io.Copy(buf, attach.Reader); err != nil {
-		return "", err
-	}
-	dsl.T.Log("exec output copied")
-
-	return buf.String(), nil
-}
-
-// spawns peer as a docker container
-func (dsl Dsl) SpawnPeer(peerConfig string) (container.CreateResponse, error) {
-	empty := container.CreateResponse{}
-	config, err := dsl.makeTempConfig(peerConfig)
-	if err != nil {
-		return empty, err
-	}
-	dsl.T.Log("config written")
-
-	const image = "docker.io/linuxserver/wireguard:latest"
-	cli := dsl.DockerClient
-	pullOpts := types.ImagePullOptions{}
-	reader, err := cli.ImagePull(ctx, image, pullOpts)
-	if err != nil {
-		return empty, err
-	}
-	dsl.T.Log("pulling image:")
-	io.Copy(os.Stdout, reader)
-
-	hostConfig := &container.HostConfig{
-		CapAdd: strslice.StrSlice{"NET_ADMIN"},
-		Mounts: []mount.Mount{{
-			Type:   mount.TypeBind,
-			Source: config.Name(),
-			Target: "/config/wg_confs/wg0.conf",
-		}},
-		Sysctls: map[string]string{
-			"net.ipv4.conf.all.src_valid_mark": "1",
-		},
-	}
-	container, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: image,
-	}, hostConfig, nil, nil, "peer-test")
-	if err != nil {
-		return empty, err
-	}
-	dsl.T.Log("container created")
-
-	startOpts := types.ContainerStartOptions{}
-	if err := cli.ContainerStart(ctx, container.ID, startOpts); err != nil {
-		return empty, err
-	}
-	dsl.T.Log("container started")
-
-	return container, nil
-}
-
-func (dsl Dsl) makeTempConfig(peerConfig string) (*os.File, error) {
-	path := "/tmp/test-peer.conf"
-	file, err := os.Create(path)
+	configPath, err := dsl.makeTempConfig(peerConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	data := []byte(peerConfig)
-	if err := os.WriteFile(file.Name(), data, 0644); err != nil {
+	composePath, err := dsl.makeTempComposeFile(configPath)
+	if err != nil {
 		return nil, err
 	}
 
-	return file, nil
+	peerCompose, err := compose.NewDockerCompose(composePath)
+	if err != nil {
+		return nil, err
+	}
+
+	waitForWg := wait.ForExec(
+		[]string{"/bin/bash", "-c", "wg"},
+	).
+		WithExitCodeMatcher(func(code int) bool {
+			return code == 0
+		})
+	waits := []wait.Strategy{
+		wait.ForLog("resolvconf -a wg0 -m 0 -x").AsRegexp(),
+		waitForWg,
+	}
+	stack := peerCompose.WaitForService(
+		peerServiceName,
+		wait.ForAll(waits...).WithDeadline(3*time.Second),
+	)
+	if err := stack.Up(
+		ctx,
+		compose.Wait(true),
+		compose.RemoveOrphans(true),
+	); err != nil {
+		return nil, err
+	}
+
+	return stack, nil
 }
 
-func (dsl Dsl) MakeSamples() error {
-	// https: //gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
+func (dsl Dsl) ApplySamples(ctx context.Context) error {
+	// https://gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
 	for _, sample := range []string{wgSampleFile, peerSampleFile} {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
 		if err != nil {
@@ -165,7 +111,7 @@ func (dsl Dsl) MakeSamples() error {
 	return nil
 }
 
-func (dsl Dsl) DeleteSamples() error {
+func (dsl Dsl) DeleteSamples(ctx context.Context) error {
 	for _, sample := range []string{wgSampleFile, peerSampleFile} {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
 		if err != nil {
@@ -188,15 +134,107 @@ func (dsl Dsl) DeleteSamples() error {
 	return nil
 }
 
+func NewDsl(t *testing.T) (*Dsl, error) {
+	apiExtClient, err := makeApiExtensionsClient()
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := makeDynamicClient()
+	if err != nil {
+		return nil, err
+	}
+
+	staticClient, err := makeStaticClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Dsl{
+		ApiExtensionsClient: apiExtClient,
+		DynamicClient:       dynamicClient,
+		StaticClient:        staticClient,
+		t:                   t,
+	}, nil
+}
+
+// generate docker compose file for peer with configuration mounted into
+// container
+func (dsl Dsl) makeTempComposeFile(configPath string) (string, error) {
+	_, filename, _, ok := runtime.Caller(1)
+	if !ok {
+		return "", fmt.Errorf("cannot distinguish caller information")
+	}
+
+	basepath := filepath.Dir(filename)
+	name := "peer.compose.yml.tpl"
+	templatePath := path.Join(basepath, "data", name)
+	tmpl, err := template.New(name).ParseFiles(templatePath)
+	if err != nil {
+		return "", err
+	}
+
+	buf := new(bytes.Buffer)
+	spec := struct {
+		ConfigPath string
+		Image      string
+		Service    string
+	}{
+		ConfigPath: configPath,
+		Image:      wireguardImage,
+		Service:    peerServiceName,
+	}
+	if err := tmpl.Execute(buf, spec); err != nil {
+		return "", err
+	}
+
+	compose := buf.Bytes()
+	fileName := fmt.Sprintf("/tmp/peer-%s.compose.yml", randomString())
+	if err := os.WriteFile(fileName, compose, 0644); err != nil {
+		return "", err
+	}
+
+	return fileName, nil
+}
+
+// dump peer configuration into temporary file and return its path
+func (dsl Dsl) makeTempConfig(peerConfig string) (string, error) {
+	path := fmt.Sprintf("/tmp/peer-%s.conf", randomString())
+	file, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+
+	data := []byte(peerConfig)
+	if err := os.WriteFile(file.Name(), data, 0644); err != nil {
+		return "", err
+	}
+
+	return file.Name(), nil
+}
+
+func randomString() string {
+	const nameLen = 10
+	const charset = "abcdefghijklmnopqrstuvwxyz"
+
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	randomBytes := make([]byte, nameLen)
+	for i := range randomBytes {
+		randomBytes[i] = charset[rand.Intn(len(charset))]
+	}
+
+	return string(randomBytes)
+}
+
 func (dsl Dsl) readObjectFromFile(path string) (
-	runtime.Object, *schema.GroupVersionKind, error) {
+	k8sRuntime.Object, *schema.GroupVersionKind, error) {
 
 	sampleBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var rawObj runtime.RawExtension
+	var rawObj k8sRuntime.RawExtension
 	reader := bytes.NewReader(sampleBytes)
 	decoder := yamlutil.NewYAMLOrJSONDecoder(reader, 100)
 	if err := decoder.Decode(&rawObj); err != nil {
@@ -214,7 +252,7 @@ func (dsl Dsl) readObjectFromFile(path string) (
 }
 
 func (dsl Dsl) objectToUnstructured(
-	obj runtime.Object, gvk *schema.GroupVersionKind) (
+	obj k8sRuntime.Object, gvk *schema.GroupVersionKind) (
 	*unstructured.Unstructured, *schema.GroupVersionResource, error) {
 
 	disc := dsl.ApiExtensionsClient.Discovery()
@@ -229,7 +267,7 @@ func (dsl Dsl) objectToUnstructured(
 		return nil, nil, err
 	}
 
-	conventer := runtime.DefaultUnstructuredConverter
+	conventer := k8sRuntime.DefaultUnstructuredConverter
 	objMap, err := conventer.ToUnstructured(obj)
 	if err != nil {
 		return nil, nil, err
@@ -242,48 +280,18 @@ func (dsl Dsl) objectToUnstructured(
 	return unstrcd, &mapping.Resource, nil
 }
 
-func NewDsl(t *testing.T) (*Dsl, error) {
-	apiExtClient, err := makeApiExtensionsClient()
-	if err != nil {
-		return nil, err
-	}
-
-	dynamicClient, err := makeDynamicClient()
-	if err != nil {
-		return nil, err
-	}
-
-	staticClient, err := makeStaticClient()
-	if err != nil {
-		return nil, err
-	}
-
-	dockerClient, err := dockerClient.NewClientWithOpts()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Dsl{
-		T:                   t,
-		DockerClient:        dockerClient,
-		ApiExtensionsClient: apiExtClient,
-		DynamicClient:       dynamicClient,
-		StaticClient:        staticClient,
-	}, nil
-}
-
 func makeStaticClient() (*kubernetes.Clientset, error) {
 	kubeConfig, err := makeKubeConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	dockerClient, err := kubernetes.NewForConfig(kubeConfig)
+	client, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return dockerClient, nil
+	return client, nil
 }
 
 func makeDynamicClient() (*dynamic.DynamicClient, error) {
@@ -292,12 +300,12 @@ func makeDynamicClient() (*dynamic.DynamicClient, error) {
 		return nil, err
 	}
 
-	dockerClient, err := dynamic.NewForConfig(kubeConfig)
+	client, err := dynamic.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return dockerClient, nil
+	return client, nil
 }
 
 func makeApiExtensionsClient() (*clientset.Clientset, error) {
@@ -306,12 +314,12 @@ func makeApiExtensionsClient() (*clientset.Clientset, error) {
 		return nil, err
 	}
 
-	clientset, err := clientset.NewForConfig(kubeConfig)
+	client, err := clientset.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return clientset, nil
+	return client, nil
 }
 
 func makeKubeConfig() (*rest.Config, error) {
