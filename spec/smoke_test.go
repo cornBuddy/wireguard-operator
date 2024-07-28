@@ -41,6 +41,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 
 	var peerConfig string
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		t.Log("Fetching peer secret")
 		client := dsl.StaticClient.CoreV1().Secrets(namespace)
 		opts := metav1.GetOptions{}
 		secret, err := client.Get(ctx, "peer-sample", opts)
@@ -59,7 +60,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 
 	var peer compose.ComposeStack
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Log("Provisioning new docker compose stack")
+		t.Log("Provisioning docker compose stack for wireguard peer")
 		peer, err = dsl.StartPeerWithConfig(ctx, peerConfig)
 		assert.Nil(c, err)
 		assert.NotNil(c, peer, "should create stack for peer")

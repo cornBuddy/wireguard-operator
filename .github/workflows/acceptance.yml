@@ -5,7 +5,7 @@ on:
     types: [labeled]
 
 concurrency:
-  group: "deployment-pipeline-${{ github.event.repository.name }}"
+  group: "acceptance-${{ github.event.repository.name }}"
 
 env:
   TEST_CLUSTER_NAME: test
