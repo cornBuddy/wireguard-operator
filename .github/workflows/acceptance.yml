@@ -15,7 +15,6 @@ env:
 
 jobs:
   disapprove-pull-request:
-    name: Remove pull request approval if exists
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,4 +99,4 @@ jobs:
       - acceptance
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/close-issue
+      - uses: ahova/infrastructure/.github/actions/close-issue@main

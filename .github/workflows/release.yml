@@ -23,7 +23,7 @@ jobs:
         id: tag
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: ./.github/actions/build
+      - uses: ahova/infrastructure/.github/actions/docker-buildx@main
         with:
           version: ${{ steps.tag.outputs.new_tag }}
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
