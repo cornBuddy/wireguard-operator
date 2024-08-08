@@ -21,7 +21,6 @@ func TestWireguardSecret(t *testing.T) {
 	t.Parallel()
 
 	type testContext struct {
-		t         *testing.T
 		key       types.NamespacedName
 		wireguard *v1alpha1.Wireguard
 		secret    *corev1.Secret
@@ -44,7 +43,6 @@ func TestWireguardSecret(t *testing.T) {
 		assert.Nil(t, err)
 
 		return testContext{
-			t:         t,
 			key:       key,
 			wireguard: &wg,
 			secret:    secret,
@@ -71,7 +69,6 @@ func TestWireguardSecret(t *testing.T) {
 	}}
 
 	spec := onpar.TableSpec(o, func(testCtx testContext, tc testCase) {
-		t := testCtx.t
 		wg := testCtx.wireguard
 
 		peer := tc.peer
@@ -119,7 +116,6 @@ func TestWireguardSecret(t *testing.T) {
 	}
 
 	o.Spec("generated keys should be valid", func(tc testContext) {
-		t := tc.t
 		data := tc.secret.Data
 		keys := []string{"public-key", "private-key"}
 		for _, key := range keys {
@@ -137,7 +133,6 @@ func TestWireguardSecret(t *testing.T) {
 	})
 
 	o.Spec("should not regenerate keys between reconcilations", func(tc testContext) {
-		t := tc.t
 		wg := tc.wireguard
 
 		// simulate reconcilation loop

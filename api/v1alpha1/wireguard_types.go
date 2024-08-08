@@ -32,8 +32,6 @@ type WireguardSpec struct {
 	// Do not allow connections from peer to DropConnectionsTo IP addresses
 	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
 
-	// +kubebuilder:validation:Optional
-
 	// DNS configuration for peer
 	DNS *DNS `json:"dns,omitempty"`
 
