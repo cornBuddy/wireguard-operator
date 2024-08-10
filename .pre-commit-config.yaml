@@ -6,27 +6,9 @@ repos:
       - id: editorconfig-checker
   - repo: local
     hooks:
-      - id: make-fmt
-        name: make fmt
-        entry: make fmt
-        language: system
-        files: \.go$
-        pass_filenames: false
-      - id: make-vet
-        name: make vet
-        entry: make vet
-        language: system
-        files: \.go$
-        pass_filenames: false
-      - id: make-manifests
-        name: make manifests
-        entry: make manifests
-        language: system
-        files: \.go$
-        pass_filenames: false
-      - id: make-generate
-        name: make generate
-        entry: make generate
+      - id: make-lint
+        name: make lint
+        entry: make lint
         language: system
         files: \.go$
         pass_filenames: false

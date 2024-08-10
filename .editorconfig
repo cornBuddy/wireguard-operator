@@ -15,5 +15,5 @@ max_line_length = 150
 indent_style = tab
 indent_size = 4
 
-[api/**]
-max_line_length = 535
+[src/api/**]
+max_line_length = 387

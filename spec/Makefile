@@ -15,6 +15,13 @@ vet:
 tidy: ## Run go mod tidy against code.
 	go mod tidy
 
+.PHONY: fmt
+fmt: ## Run go fmt against code.
+	go fmt ./...
+
+.PHONY: lint
+lint: tidy fmt vet ## Static analisys of the code
+
 .PHONY: update
 update: ## Updates all packates
 	go get -u ./...

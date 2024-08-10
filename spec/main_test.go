@@ -32,8 +32,8 @@ import (
 
 const (
 	namespace       = "default"
-	wgSampleFile    = "../config/samples/wireguard.yaml"
-	peerSampleFile  = "../config/samples/wireguardpeer.yaml"
+	wgSampleFile    = "../src/config/samples/wireguard.yaml"
+	peerSampleFile  = "../src/config/samples/wireguardpeer.yaml"
 	wireguardImage  = "linuxserver/wireguard:1.0.20210914"
 	peerServiceName = "peer"
 )

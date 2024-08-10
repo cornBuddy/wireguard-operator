@@ -1,5 +1,5 @@
 ---
-name: Commit checks
+name: commit checks
 on:
   push:
     branches:
@@ -56,7 +56,9 @@ jobs:
           dry_run: true
       - uses: ahova/infrastructure/.github/actions/docker-buildx@main
         with:
+          context: src/
           version: ${{ steps.tag.outputs.new_tag }}
+          repository: ${{ github.event.repository.name }}
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws_region: ${{ secrets.AWS_REGION }}

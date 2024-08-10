@@ -39,7 +39,6 @@ func TestMain(m *testing.M) {
 		CRDDirectoryPaths:     []string{crdPath},
 		ErrorIfCRDPathMissing: true,
 	}
-
 	cfg, err := testEnv.Start()
 	if err != nil {
 		log.Fatalf("failed to start testenv: %v", err)

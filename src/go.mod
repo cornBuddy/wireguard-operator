@@ -1,8 +1,6 @@
 module github.com/ahova-vpn/wireguard-operator
 
-go 1.22.0
-
-toolchain go1.22.2
+go 1.22.2
 
 require (
 	github.com/cisco-open/k8s-objectmatcher v1.10.0
