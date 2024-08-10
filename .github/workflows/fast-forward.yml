@@ -1,5 +1,5 @@
 ---
-name: Fast forward pull request
+name: fast forward pull request
 on:
   issue_comment:
     types: [created]
