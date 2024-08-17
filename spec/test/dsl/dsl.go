@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"path"
@@ -31,20 +32,123 @@ import (
 )
 
 const (
-	wgSampleFile    = "../src/config/samples/wireguard.yaml"
-	peerSampleFile  = "../src/config/samples/wireguardpeer.yaml"
-	wireguardImage  = "linuxserver/wireguard:1.0.20210914"
 	PeerServiceName = "peer"
+
+	wgSampleFile   = "../src/config/samples/wireguard.yaml"
+	peerSampleFile = "../src/config/samples/wireguardpeer.yaml"
+	wireguardImage = "linuxserver/wireguard:1.0.20210914"
+)
+
+var (
+	wireguardGvr = schema.GroupVersionResource{
+		Group:    "vpn.ahova.com",
+		Version:  "v1alpha1",
+		Resource: "wireguards",
+	}
+	peerGvr = schema.GroupVersionResource{
+		Group:    "vpn.ahova.com",
+		Version:  "v1alpha1",
+		Resource: "wireguardpeers",
+	}
 )
 
 type Dsl struct {
-	ApiExtensionsClient *clientset.Clientset
-	DynamicClient       *dynamic.DynamicClient
-	StaticClient        *kubernetes.Clientset
+	Client              *kubernetes.Clientset
+	apiExtensionsClient *clientset.Clientset
+	dynamicClient       *dynamic.DynamicClient
+	ctx                 context.Context
 	t                   *testing.T
 }
 
-func (dsl Dsl) StartPeerWithConfig(ctx context.Context, peerConfig string) (
+type spec map[string]interface{}
+
+func (dsl Dsl) CreatePeerWithSpec(namespace string, spec spec) (string, error) {
+	name := randomString()
+	obj := map[string]interface{}{
+		"apiVersion": "vpn.ahova.com/v1alpha1",
+		"kind":       "WireguardPeer",
+		"metadata": map[string]string{
+			"name":      name,
+			"namespace": namespace,
+		},
+		"spec": spec,
+	}
+	unstrcd := &unstructured.Unstructured{
+		Object: obj,
+	}
+
+	opts := metav1.CreateOptions{}
+	dri := dsl.dynamicClient.Resource(peerGvr).Namespace(namespace)
+	if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
+		return "", err
+	}
+
+	return name, nil
+
+}
+
+func (dsl Dsl) DeletePeer(name, namespace string) error {
+	opts := metav1.DeleteOptions{}
+	dri := dsl.dynamicClient.Resource(peerGvr).Namespace(namespace)
+	if err := dri.Delete(dsl.ctx, name, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dsl Dsl) CreateWireguardWithSpec(namespace string, spec spec) (string, error) {
+	if spec["serviceAnnotations"] == nil {
+		spec["serviceAnnotations"] = map[string]interface{}{}
+	}
+
+	// annotations below are required for eks, and I don't want to copypaste
+	// them in each procedure call
+	defaultServiceAnnotations := map[string]interface{}{
+		"service.beta.kubernetes.io/aws-load-balancer-type":                              "nlb",
+		"service.beta.kubernetes.io/aws-load-balancer-backend-protocol":                  "udp",
+		"service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled": "true",
+		"service.beta.kubernetes.io/aws-load-balancer-healthcheck-port":                  "10250",
+		"service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol":              "tcp",
+	}
+	svcAnnotations := spec["serviceAnnotations"].(map[string]interface{})
+	maps.Copy(svcAnnotations, defaultServiceAnnotations)
+	spec["serviceAnnotations"] = svcAnnotations
+
+	name := randomString()
+	obj := map[string]interface{}{
+		"apiVersion": "vpn.ahova.com/v1alpha1",
+		"kind":       "Wireguard",
+		"metadata": map[string]string{
+			"name":      name,
+			"namespace": namespace,
+		},
+		"spec": spec,
+	}
+	unstrcd := &unstructured.Unstructured{
+		Object: obj,
+	}
+
+	opts := metav1.CreateOptions{}
+	dri := dsl.dynamicClient.Resource(wireguardGvr).Namespace(namespace)
+	if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
+func (dsl Dsl) DeleteWireguard(name, namespace string) error {
+	opts := metav1.DeleteOptions{}
+	dri := dsl.dynamicClient.Resource(wireguardGvr).Namespace(namespace)
+	if err := dri.Delete(dsl.ctx, name, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 	compose.ComposeStack, error) {
 
 	configPath, err := dsl.makeTempConfig(peerConfig)
@@ -77,7 +181,7 @@ func (dsl Dsl) StartPeerWithConfig(ctx context.Context, peerConfig string) (
 		wait.ForAll(waits...).WithDeadline(3*time.Second),
 	)
 	if err := stack.Up(
-		ctx,
+		dsl.ctx,
 		compose.Wait(true),
 		compose.RemoveOrphans(true),
 	); err != nil {
@@ -87,7 +191,7 @@ func (dsl Dsl) StartPeerWithConfig(ctx context.Context, peerConfig string) (
 	return stack, nil
 }
 
-func (dsl Dsl) ApplySamples(ctx context.Context, namespace string) error {
+func (dsl Dsl) ApplySamples(namespace string) error {
 	// https://gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
 	for _, sample := range []string{wgSampleFile, peerSampleFile} {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
@@ -101,8 +205,8 @@ func (dsl Dsl) ApplySamples(ctx context.Context, namespace string) error {
 		}
 
 		opts := metav1.CreateOptions{}
-		dri := dsl.DynamicClient.Resource(*res).Namespace(namespace)
-		if _, err := dri.Create(ctx, unstrcd, opts); err != nil {
+		dri := dsl.dynamicClient.Resource(*res).Namespace(namespace)
+		if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
 			return err
 		}
 	}
@@ -110,7 +214,7 @@ func (dsl Dsl) ApplySamples(ctx context.Context, namespace string) error {
 	return nil
 }
 
-func (dsl Dsl) DeleteSamples(ctx context.Context, namespace string) error {
+func (dsl Dsl) DeleteSamples(namespace string) error {
 	for _, sample := range []string{wgSampleFile, peerSampleFile} {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
 		if err != nil {
@@ -124,8 +228,8 @@ func (dsl Dsl) DeleteSamples(ctx context.Context, namespace string) error {
 
 		opts := metav1.DeleteOptions{}
 		name := unstrcd.GetName()
-		dri := dsl.DynamicClient.Resource(*res).Namespace(namespace)
-		if err := dri.Delete(ctx, name, opts); err != nil {
+		dri := dsl.dynamicClient.Resource(*res).Namespace(namespace)
+		if err := dri.Delete(dsl.ctx, name, opts); err != nil {
 			return err
 		}
 	}
@@ -133,7 +237,7 @@ func (dsl Dsl) DeleteSamples(ctx context.Context, namespace string) error {
 	return nil
 }
 
-func NewDsl(t *testing.T) (*Dsl, error) {
+func NewDsl(ctx context.Context, t *testing.T) (*Dsl, error) {
 	apiExtClient, err := MakeApiExtensionsClient()
 	if err != nil {
 		return nil, err
@@ -150,9 +254,10 @@ func NewDsl(t *testing.T) (*Dsl, error) {
 	}
 
 	return &Dsl{
-		ApiExtensionsClient: apiExtClient,
-		DynamicClient:       dynamicClient,
-		StaticClient:        staticClient,
+		Client:              staticClient,
+		apiExtensionsClient: apiExtClient,
+		dynamicClient:       dynamicClient,
+		ctx:                 ctx,
 		t:                   t,
 	}, nil
 }
@@ -227,11 +332,11 @@ func (dsl Dsl) makeTempConfig(peerConfig string) (string, error) {
 }
 
 func randomString() string {
-	const nameLen = 10
+	const resultLength = 10
 	const charset = "abcdefghijklmnopqrstuvwxyz"
 
 	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
-	randomBytes := make([]byte, nameLen)
+	randomBytes := make([]byte, resultLength)
 	for i := range randomBytes {
 		randomBytes[i] = charset[rand.Intn(len(charset))]
 	}
@@ -268,7 +373,7 @@ func (dsl Dsl) objectToUnstructured(
 	obj k8sRuntime.Object, gvk *schema.GroupVersionKind) (
 	*unstructured.Unstructured, *schema.GroupVersionResource, error) {
 
-	disc := dsl.ApiExtensionsClient.Discovery()
+	disc := dsl.apiExtensionsClient.Discovery()
 	gr, err := restmapper.GetAPIGroupResources(disc)
 	if err != nil {
 		return nil, nil, err
