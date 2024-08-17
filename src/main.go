@@ -16,8 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	vpnv1alpha1 "github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-	"github.com/ahova-vpn/wireguard-operator/controllers"
+	vpnv1alpha1 "github.com/ahova/wireguard-operator/src/api/v1alpha1"
+	"github.com/ahova/wireguard-operator/src/controllers"
 	//+kubebuilder:scaffold:imports
 )
 

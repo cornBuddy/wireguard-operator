@@ -1,4 +1,4 @@
-package spec
+package dsl
 
 import (
 	"bytes"
@@ -31,11 +31,10 @@ import (
 )
 
 const (
-	namespace       = "default"
 	wgSampleFile    = "../src/config/samples/wireguard.yaml"
 	peerSampleFile  = "../src/config/samples/wireguardpeer.yaml"
 	wireguardImage  = "linuxserver/wireguard:1.0.20210914"
-	peerServiceName = "peer"
+	PeerServiceName = "peer"
 )
 
 type Dsl struct {
@@ -74,7 +73,7 @@ func (dsl Dsl) StartPeerWithConfig(ctx context.Context, peerConfig string) (
 		waitForWg,
 	}
 	stack := peerCompose.WaitForService(
-		peerServiceName,
+		PeerServiceName,
 		wait.ForAll(waits...).WithDeadline(3*time.Second),
 	)
 	if err := stack.Up(
@@ -88,7 +87,7 @@ func (dsl Dsl) StartPeerWithConfig(ctx context.Context, peerConfig string) (
 	return stack, nil
 }
 
-func (dsl Dsl) ApplySamples(ctx context.Context) error {
+func (dsl Dsl) ApplySamples(ctx context.Context, namespace string) error {
 	// https://gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
 	for _, sample := range []string{wgSampleFile, peerSampleFile} {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
@@ -111,7 +110,7 @@ func (dsl Dsl) ApplySamples(ctx context.Context) error {
 	return nil
 }
 
-func (dsl Dsl) DeleteSamples(ctx context.Context) error {
+func (dsl Dsl) DeleteSamples(ctx context.Context, namespace string) error {
 	for _, sample := range []string{wgSampleFile, peerSampleFile} {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
 		if err != nil {
@@ -135,7 +134,7 @@ func (dsl Dsl) DeleteSamples(ctx context.Context) error {
 }
 
 func NewDsl(t *testing.T) (*Dsl, error) {
-	apiExtClient, err := makeApiExtensionsClient()
+	apiExtClient, err := MakeApiExtensionsClient()
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +155,20 @@ func NewDsl(t *testing.T) (*Dsl, error) {
 		StaticClient:        staticClient,
 		t:                   t,
 	}, nil
+}
+
+func MakeApiExtensionsClient() (*clientset.Clientset, error) {
+	kubeConfig, err := makeKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := clientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
 // generate docker compose file for peer with configuration mounted into
@@ -182,7 +195,7 @@ func (dsl Dsl) makeTempComposeFile(configPath string) (string, error) {
 	}{
 		ConfigPath: configPath,
 		Image:      wireguardImage,
-		Service:    peerServiceName,
+		Service:    PeerServiceName,
 	}
 	if err := tmpl.Execute(buf, spec); err != nil {
 		return "", err
@@ -301,20 +314,6 @@ func makeDynamicClient() (*dynamic.DynamicClient, error) {
 	}
 
 	client, err := dynamic.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
-
-func makeApiExtensionsClient() (*clientset.Clientset, error) {
-	kubeConfig, err := makeKubeConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := clientset.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
 	}

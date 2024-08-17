@@ -1,4 +1,4 @@
-module github.com/ahova-vpn/wireguard-operator
+module github.com/ahova/wireguard-operator/src
 
 go 1.22.2
 

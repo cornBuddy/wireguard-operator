@@ -3,6 +3,10 @@ pre-commit:
 	pre-commit install
 	pre-commit run --verbose --all-files --show-diff-on-failure
 
+.PHONY: run
+run:
+	@$(MAKE) -C src run
+
 .PHONY: lint
 lint:
 	@$(MAKE) -C src lint manifests generate

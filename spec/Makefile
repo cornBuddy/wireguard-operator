@@ -5,7 +5,7 @@ clean:
 
 .PHONY: smoke
 smoke: clean
-	go test -v ./main_test.go ./smoke_test.go
+	go test -v ./smoke_test.go
 
 .PHONY: vet
 vet:

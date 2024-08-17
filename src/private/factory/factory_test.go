@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
-	"github.com/ahova-vpn/wireguard-operator/test/dsl"
+	"github.com/ahova/wireguard-operator/src/api/v1alpha1"
+	"github.com/ahova/wireguard-operator/src/test/dsl"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

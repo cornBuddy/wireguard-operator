@@ -7,28 +7,34 @@ import (
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	testdsl "github.com/ahova/wireguard-operator/spec/test/dsl"
 )
 
 const (
-	timeout = 5 * time.Minute
-	tick    = 10 * time.Second
+	timeout   = 5 * time.Minute
+	tick      = 10 * time.Second
+	namespace = "default"
 )
+
+func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
+	t.Parallel()
+}
 
 func TestSamplesShouldBeConnectable(t *testing.T) {
 	t.Parallel()
 
-	dsl, err := NewDsl(t)
+	dsl, err := testdsl.NewDsl(t)
 	assert.Nil(t, err)
 	assert.NotNil(t, dsl)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		t.Log("Deleting samples")
-		err := dsl.DeleteSamples(ctx)
+		err := dsl.DeleteSamples(ctx, namespace)
 		assert.Nil(t, err, "samples should be deletable")
 
 		t.Log("Cancelling peer context")
@@ -36,7 +42,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 	})
 
 	t.Log("Applying samples")
-	err = dsl.ApplySamples(ctx)
+	err = dsl.ApplySamples(ctx, namespace)
 	assert.Nil(t, err, "samples should be deployed")
 
 	var peerConfig string
@@ -72,7 +78,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 		}
 
 		t.Log("Fetching peer container")
-		container, err := peer.ServiceContainer(ctx, peerServiceName)
+		container, err := peer.ServiceContainer(ctx, testdsl.PeerServiceName)
 		assert.Nil(c, err)
 		assert.NotEmpty(c, container, "should start peer container")
 
@@ -124,7 +130,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 func TestCRDsShouldBeInstalled(t *testing.T) {
 	t.Parallel()
 
-	client, err := makeApiExtensionsClient()
+	client, err := testdsl.MakeApiExtensionsClient()
 	assert.Nil(t, err, "k8s should be available")
 
 	ctx := context.TODO()

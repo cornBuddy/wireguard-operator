@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ahova-vpn/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/wireguard-operator/src/api/v1alpha1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
