@@ -62,6 +62,16 @@ vendor: update tidy ## Packages update and `go mod tidy`
 .PHONY: lint
 lint: tidy fmt vet ## Static analisys of the code
 
+ENVTEST_K8S_VERSION ?= 1.30.0
+KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
+.PHONY: test ## Run unit tests
+test: manifests generate envtest ## Run unit tests.
+	KUBEBUILDER_ASSETS="../$(KUBEBUILDER_ASSETS)" \
+		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
+		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kubectl" \
+		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
+		go test -coverprofile=coverage.out -cover ./...
+
 ##@ Build
 
 .PHONY: docker
@@ -100,18 +110,6 @@ envtest: ## Installs envtest-setup locally if necessary.
 	mkdir -p $(LOCALBIN)
 	command -v setup-envtest \
 		|| go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-
-##@ Testing
-
-ENVTEST_K8S_VERSION ?= 1.30.0
-KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
-.PHONY: test ## Run unit tests
-test: manifests generate envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="../$(KUBEBUILDER_ASSETS)" \
-		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
-		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kubectl" \
-		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
-		go test -coverprofile=coverage.out -cover ./...
 
 ##@ Deployment
 
