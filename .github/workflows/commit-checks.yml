@@ -33,7 +33,7 @@ jobs:
           check-latest: true
       - run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
       - name: test
-        working-director: src
+        working-directory: src
         run: |
           ASSETS="$(setup-envtest use --force --bin-dir bin --print path 1.30.0)"
           KUBEBUILDER_ASSETS="../${ASSETS}"
