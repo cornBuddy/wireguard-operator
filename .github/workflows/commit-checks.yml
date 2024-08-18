@@ -31,10 +31,6 @@ jobs:
         with:
           go-version: 'stable'
           check-latest: true
-      - name: setup env
-        run: |
-          echo "::set-env name=GOPATH::$(go env GOPATH)"
-          echo "::add-path::$(go env GOPATH)/bin"
       - run: >-
           GOPATH=$(go env GOPATH)
           PATH="$PATH:$(go env GOPATH)"
