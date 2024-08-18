@@ -9,10 +9,8 @@ ENVTEST_K8S_VERSION ?= 1.29.5
 
 DEPLOY ?= ./config
 
-LOCALBIN ?= $(shell pwd)/bin
-ENVTEST ?= $(LOCALBIN)/setup-envtest
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-KUSTOMIZE ?= $(LOCALBIN)/kustomize
+CONTROLLER_GEN ?= controller-gen
+KUSTOMIZE ?= kustomize
 
 BIN_PATH ?= "./wireguard-operator"
 IMG_BASE ?= wireguard-operator
@@ -87,31 +85,32 @@ manifests: controller-gen ## Generate CRDs
 		crd paths="./..." \
 		output:crd:artifacts:config=$(DEPLOY)/crd/bases
 
-## Location to install dependencies to
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
-
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
-kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
-$(KUSTOMIZE): $(LOCALBIN)
-	test -s $(LOCALBIN)/kustomize || { curl -Ss $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(KUSTOMIZE_VERSION) $(LOCALBIN); }
+kustomize: ## Download kustomize locally if necessary.
+	command -v kustomize \
+		|| curl -s $(KUSTOMIZE_INSTALL_SCRIPT)
 
 .PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	test -s $(LOCALBIN)/controller-gen || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
+controller-gen:
+	command -v controller-gen \
+		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
 .PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+envtest: ## Installs envtest-setup locally if necessary.
+	command -v setup-envtest \
+		|| go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 ##@ Testing
 
+LOCALBIN ?= $(shell pwd)/bin
+
+localbin: ## Make room to install dependencies to
+	mkdir -p $(LOCALBIN)
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 .PHONY: test
-test: manifests generate fmt vet tidy envtest ## Run unit tests.
+test: localbin manifests generate fmt vet tidy envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
 		go test -coverprofile=coverage.out -cover ./...
 
