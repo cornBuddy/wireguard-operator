@@ -95,7 +95,6 @@ controller-gen:
 		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
 LOCALBIN ?= "bin"
-ENVTEST_K8S_VERSION ?= 1.30.0
 .PHONY: envtest
 envtest: ## Installs envtest-setup locally if necessary.
 	mkdir -p $(LOCALBIN)
@@ -104,6 +103,7 @@ envtest: ## Installs envtest-setup locally if necessary.
 
 ##@ Testing
 
+ENVTEST_K8S_VERSION ?= 1.30.0
 KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
 .PHONY: test ## Run unit tests
 test: manifests generate envtest ## Run unit tests.
