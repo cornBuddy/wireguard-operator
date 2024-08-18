@@ -104,13 +104,13 @@ envtest: ## Installs envtest-setup locally if necessary.
 
 ##@ Testing
 
-KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path)
+KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
 .PHONY: test ## Run unit tests
 test: manifests generate envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="../$(KUBEBUILDER_ASSETS)" \
 		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
-		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
-		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kubectl" \
+		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kubectl" \
+		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
 		go test -coverprofile=coverage.out -cover ./...
 
 ##@ Deployment
