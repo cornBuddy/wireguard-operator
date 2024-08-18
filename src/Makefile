@@ -4,8 +4,6 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-KUSTOMIZE_VERSION ?= 5.4.2
-ENVTEST_K8S_VERSION ?= 1.29.5
 
 DEPLOY ?= ./config
 
@@ -96,22 +94,23 @@ controller-gen:
 	command -v controller-gen \
 		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
+LOCALBIN ?= "bin"
+ENVTEST_K8S_VERSION ?= 1.30.0
 .PHONY: envtest
 envtest: ## Installs envtest-setup locally if necessary.
+	mkdir -p $(LOCALBIN)
 	command -v setup-envtest \
 		|| go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 ##@ Testing
 
-LOCALBIN ?= $(shell pwd)/bin
-
-localbin: ## Make room to install dependencies to
-	mkdir -p $(LOCALBIN)
-
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-.PHONY: test
-test: localbin manifests generate fmt vet tidy envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path)
+.PHONY: test ## Run unit tests
+test: manifests generate envtest ## Run unit tests.
+	KUBEBUILDER_ASSETS="../$(KUBEBUILDER_ASSETS)" \
+		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
+		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
+		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kubectl" \
 		go test -coverprofile=coverage.out -cover ./...
 
 ##@ Deployment
