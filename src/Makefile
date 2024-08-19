@@ -27,7 +27,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: run
-run: manifests generate install fmt vet test ## Run a controller from your host.
+run: manifests generate install fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: pre-commit

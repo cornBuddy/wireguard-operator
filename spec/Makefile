@@ -4,7 +4,7 @@ clean:
 	- kubectl delete wireguardpeer --all
 
 .PHONY: smoke
-smoke: clean
+smoke:
 	go test -v ./smoke_test.go
 
 .PHONY: vet

@@ -51,7 +51,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
+		assert.NotContains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "should start without any [Peer]'s")
 
 	t.Log("Creating peer resource")
@@ -65,7 +65,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.Contains(t, string(secret.Data["config"]), "[Peer]")
+		assert.Contains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "[Peer] should pop up once peer is added")
 
 	t.Log("Deleting peer")
@@ -76,7 +76,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
+		assert.NotContains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "[Peer] should begone once peer is removed")
 }
 

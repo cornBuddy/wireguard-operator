@@ -4,21 +4,14 @@ import (
 	"context"
 
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/ahova/wireguard-operator/src/api/v1alpha1"
 	"github.com/ahova/wireguard-operator/src/private/factory"
@@ -153,49 +146,8 @@ func (r *WireguardPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *WireguardPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	ctx := context.Background()
-	peer := &v1alpha1.WireguardPeer{}
-	if err := mgr.GetFieldIndexer().IndexField(ctx, peer, wireguardRefField, func(obj client.Object) []string {
-		// Extract the ConfigMap name from the ConfigDeployment Spec, if one is provided
-		peer := obj.(*v1alpha1.WireguardPeer)
-		if peer.Spec.WireguardRef == "" {
-			return nil
-		}
-		return []string{peer.Spec.WireguardRef}
-	}); err != nil {
-		return err
-	}
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.WireguardPeer{}).
 		Owns(&v1.Secret{}).
-		Watches(
-			&v1alpha1.Wireguard{},
-			handler.EnqueueRequestsFromMapFunc(r.findWireguardRef),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
-		).
 		Complete(r)
-}
-
-func (r *WireguardPeerReconciler) findWireguardRef(ctx context.Context, wg client.Object) []reconcile.Request {
-	peers := &v1alpha1.WireguardPeerList{}
-	opts := &client.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector(wireguardRefField, wg.GetName()),
-		Namespace:     wg.GetNamespace(),
-	}
-	if err := r.List(ctx, peers, opts); err != nil {
-		return []reconcile.Request{}
-	}
-
-	requests := []reconcile.Request{}
-	for _, peer := range peers.Items {
-		req := reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Name:      peer.GetName(),
-				Namespace: peer.GetNamespace(),
-			},
-		}
-		requests = append(requests, req)
-	}
-	return requests
 }

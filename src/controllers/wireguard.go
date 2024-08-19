@@ -4,14 +4,12 @@ import (
 	"context"
 
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -205,7 +203,6 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Wireguard{}).
-		Owns(&v1alpha1.WireguardPeer{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).
@@ -214,7 +211,7 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *WireguardReconciler) getPeers(
-	ctx context.Context, wg *v1alpha1.Wireguard) (v1alpha1.WireguardPeerList, error) {
+	ctx context.Context, wg client.Object) (v1alpha1.WireguardPeerList, error) {
 
 	var allPeers v1alpha1.WireguardPeerList
 	err := r.List(ctx, &allPeers)
