@@ -31,16 +31,7 @@ jobs:
         with:
           go-version: 'stable'
           check-latest: true
-      - run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-      - name: test
-        working-directory: src
-        run: |
-          export ASSETS="$(setup-envtest use --force --bin-dir bin --print path 1.30.0)"
-          export KUBEBUILDER_ASSETS="../${ASSETS}"
-          export TEST_ASSET_ETCD="../${ASSETS}/etcd"
-          export TEST_ASSET_KUBECTL="../${ASSETS}/kubectl"
-          export TEST_ASSET_KUBE_APISERVER="../${ASSETS}/kube-apiserver"
-          go test  ./...
+      - run: make test
 
   release-candidate:
     runs-on: ubuntu-latest

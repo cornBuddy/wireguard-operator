@@ -62,6 +62,13 @@ vendor: update tidy ## Packages update and `go mod tidy`
 .PHONY: lint
 lint: tidy fmt vet ## Static analisys of the code
 
+LOCALBIN ?= "bin"
+.PHONY: envtest
+envtest: ## Installs envtest-setup locally if necessary.
+	mkdir -p $(LOCALBIN)
+	command -v setup-envtest \
+		|| go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
 ENVTEST_K8S_VERSION ?= 1.30.0
 KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
 .PHONY: test ## Run unit tests
@@ -103,13 +110,6 @@ kustomize: ## Download kustomize locally if necessary.
 controller-gen:
 	command -v controller-gen \
 		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
-
-LOCALBIN ?= "bin"
-.PHONY: envtest
-envtest: ## Installs envtest-setup locally if necessary.
-	mkdir -p $(LOCALBIN)
-	command -v setup-envtest \
-		|| go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 ##@ Deployment
 
