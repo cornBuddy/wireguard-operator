@@ -73,7 +73,6 @@ ENVTEST_K8S_VERSION ?= 1.30.0
 KUBEBUILDER_ASSETS = $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
 .PHONY: test ## Run unit tests
 test: manifests generate envtest ## Run unit tests.
-	setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION)
 	KUBEBUILDER_ASSETS="../$(KUBEBUILDER_ASSETS)" \
 		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
 		TEST_ASSET_KUBECTL="../$(KUBEBUILDER_ASSETS)/kubectl" \
