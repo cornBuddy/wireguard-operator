@@ -54,7 +54,6 @@ jobs:
       - prepare-env
     steps:
       - uses: actions/checkout@v4
-      - run: rm ~/.aws/credentials || true
       - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
       - run: make smoke
 
