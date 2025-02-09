@@ -20,8 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/ahova/wireguard-operator/src/api/v1alpha1"
-	"github.com/ahova/wireguard-operator/src/private/factory"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/private/factory"
 )
 
 const (

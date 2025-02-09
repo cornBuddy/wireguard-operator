@@ -1,4 +1,4 @@
-module github.com/ahova/wireguard-operator/spec
+module github.com/cornbuddy/wireguard-operator/spec
 
 go 1.23
 

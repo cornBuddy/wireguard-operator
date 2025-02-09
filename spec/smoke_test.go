@@ -11,7 +11,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	testdsl "github.com/ahova/wireguard-operator/spec/test/dsl"
+	testdsl "github.com/cornbuddy/wireguard-operator/spec/test/dsl"
 )
 
 const (

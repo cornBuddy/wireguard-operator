@@ -10,6 +10,7 @@ DEPLOY ?= ./config
 CONTROLLER_GEN ?= controller-gen
 KUSTOMIZE ?= kustomize
 
+LOCALBIN ?= "bin"
 BIN_PATH ?= "./wireguard-operator"
 IMG_BASE ?= wireguard-operator
 TAG ?= latest
@@ -104,7 +105,6 @@ controller-gen:
 	command -v controller-gen \
 		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
-LOCALBIN ?= "bin"
 .PHONY: envtest
 envtest: ## Installs envtest-setup locally if necessary.
 	mkdir -p $(LOCALBIN)

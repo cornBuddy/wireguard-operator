@@ -16,8 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/ahova/wireguard-operator/src/api/v1alpha1"
-	"github.com/ahova/wireguard-operator/src/private/factory"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/private/factory"
 )
 
 // WireguardReconciler reconciles a Wireguard object

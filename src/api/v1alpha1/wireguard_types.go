@@ -27,7 +27,7 @@ type WireguardSpec struct {
 	// Address space to use
 	Address `json:"address,omitempty"`
 
-	// +kubebuilder:default={"192.168.0.0/16","172.16.0.0/12","10.0.0.0/8","169.254.169.254/32"}
+	// +kubebuilder:default={}
 
 	// Do not allow connections from peer to DropConnectionsTo IP addresses
 	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
@@ -60,6 +60,7 @@ type DNS struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:storageversion
 
 // WireguardPeer is the Schema for the wireguardpeers API
 type Wireguard struct {

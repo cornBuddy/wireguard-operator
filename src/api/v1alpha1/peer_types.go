@@ -26,6 +26,7 @@ type WireguardPeerSpec struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:storageversion
 
 // WireguardPeer is the Schema for the wireguardpeers API
 type WireguardPeer struct {

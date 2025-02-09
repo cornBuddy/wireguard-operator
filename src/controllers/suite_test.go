@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/ahova/wireguard-operator/src/api/v1alpha1"
-	"github.com/ahova/wireguard-operator/src/test/dsl"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
 	//+kubebuilder:scaffold:imports
 )
 
