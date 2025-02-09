@@ -964,21 +964,14 @@ spec:
                     type: object
                 type: object
               allowedIPs:
-                default: 0.0.0.0/0, ::/0
+                default: 0.0.0.0/0
                 description: IP addresses allowed to be routed
                 type: string
               dns:
+                default: 1.1.1.1
                 description: DNS configuration for peer
-                properties:
-                  address:
-                    description: Address is an IPV4 address of the DNS server
-                    type: string
-                  deployServer:
-                    description: Indicates whether to use internal kubernetes dns
-                    type: boolean
-                type: object
+                type: string
               dropConnectionsTo:
-                default: []
                 description: Do not allow connections from peer to DropConnectionsTo
                   IP addresses
                 items:
@@ -987,11 +980,16 @@ spec:
               endpointAddress:
                 description: Public address to the wireguard network
                 type: string
+              labels:
+                additionalProperties:
+                  type: string
+                description: Extra labels for all resources created
+                type: object
               replicas:
                 default: 1
                 description: Replicas defines the number of Wireguard instances
                 format: int32
-                maximum: 3
+                maximum: 10
                 minimum: 1
                 type: integer
               serviceAnnotations:
@@ -3385,14 +3383,21 @@ spec:
                     type: object
                 type: object
               allowedIPs:
-                default: 0.0.0.0/0
+                default: 0.0.0.0/0, ::/0
                 description: IP addresses allowed to be routed
                 type: string
               dns:
-                default: 1.1.1.1
                 description: DNS configuration for peer
-                type: string
+                properties:
+                  address:
+                    description: Address is an IPV4 address of the DNS server
+                    type: string
+                  deployServer:
+                    description: Indicates whether to use internal kubernetes dns
+                    type: boolean
+                type: object
               dropConnectionsTo:
+                default: []
                 description: Do not allow connections from peer to DropConnectionsTo
                   IP addresses
                 items:
@@ -3401,16 +3406,11 @@ spec:
               endpointAddress:
                 description: Public address to the wireguard network
                 type: string
-              labels:
-                additionalProperties:
-                  type: string
-                description: Extra labels for all resources created
-                type: object
               replicas:
                 default: 1
                 description: Replicas defines the number of Wireguard instances
                 format: int32
-                maximum: 10
+                maximum: 3
                 minimum: 1
                 type: integer
               serviceAnnotations:
