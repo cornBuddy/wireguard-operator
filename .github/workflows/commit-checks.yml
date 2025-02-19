@@ -44,7 +44,7 @@ jobs:
       - test
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
+      IMAGE_NAME: cornbuddy/${{ github.event.repository.name }}
     permissions:
       contents: read
       packages: write
@@ -61,7 +61,7 @@ jobs:
           dry_run: true
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: make docker
