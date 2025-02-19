@@ -49,6 +49,13 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           dry_run: true
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: mathieudutour/github-tag-action@v6.2
+        id: tag
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
       - run: make docker
         env:
           IMAGE: ghcr.io/cornbuddy/${{ github.event.repository.name }}
