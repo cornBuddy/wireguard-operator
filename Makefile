@@ -27,7 +27,7 @@ smoke:
 	@$(MAKE) -C spec smoke
 
 .PHONY: docker
-deploy:
+docker:
 	@$(MAKE) -C src docker
 
 .PHONY: deploy
