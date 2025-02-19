@@ -21,7 +21,10 @@ jobs:
         with:
           go-version: 'stable'
           check-latest: true
-      - uses: ahova/infrastructure/.github/actions/pre-commit@main
+      - uses: actions/setup-python@v4
+        with:
+          update-environment: false
+      - uses: pre-commit/action@v3.0.0
 
   test:
     runs-on: ubuntu-latest

@@ -1,6 +1,7 @@
 .PHONY: pre-commit
 pre-commit:
 	pre-commit install
+	pre-commit install --hook-type commit-msg
 	pre-commit run --verbose --all-files --show-diff-on-failure
 
 .PHONY: run
@@ -36,4 +37,4 @@ undeploy:
 .PHONY: clean
 clean:
 	@$(MAKE) -C src clean
-	@$(MAKE) -C spec run
+	@$(MAKE) -C spec clean
