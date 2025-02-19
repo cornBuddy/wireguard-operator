@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
 )
 
 func TestPeerDnsConfigurations(t *testing.T) {

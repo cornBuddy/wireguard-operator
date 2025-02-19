@@ -10,8 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
 )
 
 func TestWireguardLabels(t *testing.T) {

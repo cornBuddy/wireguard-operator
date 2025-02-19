@@ -12,9 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
-	myEnvtest "github.com/ahova/ahova-vpn/services/wireguard-operator/test/envtest"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
+	myEnvtest "github.com/cornbuddy/wireguard-operator/src/test/envtest"
 	//+kubebuilder:scaffold:imports
 )
 

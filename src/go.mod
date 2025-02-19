@@ -1,4 +1,4 @@
-module github.com/ahova/ahova-vpn/services/wireguard-operator
+module github.com/cornbuddy/wireguard-operator/src
 
 go 1.23
 

@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
-	"github.com/ahova/ahova-vpn/services/wireguard-operator/private/factory"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/private/factory"
 )
 
 // WireguardPeerReconciler reconciles a WireguardPeer object
