@@ -26,6 +26,10 @@ vendor:
 smoke:
 	@$(MAKE) -C spec smoke
 
+.PHONY: docker
+deploy:
+	@$(MAKE) -C src docker
+
 .PHONY: deploy
 deploy:
 	@$(MAKE) -C src deploy
