@@ -8,6 +8,11 @@ pre-commit:
 run:
 	@$(MAKE) -C src run
 
+.PHONY: clean
+clean:
+	@$(MAKE) -C src clean
+	@$(MAKE) -C spec clean
+
 .PHONY: lint
 lint:
 	@$(MAKE) -C src lint manifests generate
@@ -37,8 +42,3 @@ deploy:
 .PHONY: undeploy
 undeploy:
 	@$(MAKE) -C src undeploy
-
-.PHONY: clean
-clean:
-	@$(MAKE) -C src clean
-	@$(MAKE) -C spec clean
