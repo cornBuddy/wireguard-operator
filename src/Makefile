@@ -77,7 +77,7 @@ test: manifests generate envtest ## Run unit tests.
 
 .PHONY: docker
 docker: ## Build docker image
-	docker build --tag ${IMG} .
+	docker buildx bake
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.

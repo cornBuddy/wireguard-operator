@@ -10,11 +10,7 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 RUN go mod download
 
-COPY main.go main.go
-COPY api/ api/
-COPY controllers/ controllers/
-COPY private/ private/
-
+COPY . .
 RUN go build \
     -a -v \
     -gcflags=all="-l -B" \
