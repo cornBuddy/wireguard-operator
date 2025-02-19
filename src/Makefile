@@ -63,7 +63,7 @@ vendor: update tidy ## Packages update and `go mod tidy`
 .PHONY: lint
 lint: tidy fmt vet ## Static analisys of the code
 
-ENVTEST_K8S_VERSION ?= 1.30.0
+ENVTEST_K8S_VERSION ?= 1.31.0
 KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
 .PHONY: test ## Run unit tests
 test: manifests generate envtest ## Run unit tests.
