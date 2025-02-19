@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
 )
 
 type Reconciler interface {

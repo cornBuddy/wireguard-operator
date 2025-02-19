@@ -4,20 +4,21 @@ import (
 	"context"
 
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/private/factory"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/private/factory"
 )
 
 // WireguardReconciler reconciles a Wireguard object
@@ -39,26 +40,22 @@ type WireguardReconciler struct {
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services/status,verbs=get;list;watch;create;update;patch;delete
 
-func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx).
-		WithName("wireguard").
-		WithValues("Name", req.Name, "Namespace", req.Namespace)
+func (r *WireguardReconciler) Reconcile(
+	ctx context.Context, req ctrl.Request) (
+	ctrl.Result, error) {
+
+	log := log.FromContext(ctx).WithName("wireguard")
 
 	// Wireguard
-	wireguard := &v1alpha1.Wireguard{}
-	err := r.Get(ctx, req.NamespacedName, wireguard)
+	wireguard, err := r.getWireguard(ctx, req.NamespacedName)
 	if err != nil && !apierrors.IsNotFound(err) {
-		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get wireguard")
 		return ctrl.Result{}, err
 	} else if apierrors.IsNotFound(err) {
-		// If the custom resource is not found then, it usually means
-		// that it was deleted or not created. In this way, we will stop
-		// the reconciliation
-		log.Info("wireguard resource not found. Ignoring since object must be deleted")
+		log.Info("must have been deleted, reconcilation is finished")
 		return ctrl.Result{}, nil
 	}
-	log.Info("Successfully read wireguard from cluster")
+	log.Info("Successfully read wireguard or peer from cluster")
 
 	// WireguardPeers
 	peers, err := r.getPeers(ctx, wireguard)
@@ -203,9 +200,13 @@ func (r *WireguardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	handlers := &handler.EnqueueRequestForObject{}
+	predicates := builder.WithPredicates(
+		predicate.ResourceVersionChangedPredicate{},
+	)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Wireguard{}).
-		Owns(&v1alpha1.WireguardPeer{}).
+		Watches(&v1alpha1.WireguardPeer{}, handlers, predicates).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).
@@ -213,11 +214,46 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func (r *WireguardReconciler) getWireguard(
+	ctx context.Context, key types.NamespacedName) (
+	*v1alpha1.Wireguard, error) {
+
+	wireguard := &v1alpha1.Wireguard{}
+	err := r.Get(ctx, key, wireguard)
+	if err != nil && !apierrors.IsNotFound(err) {
+		// unexpected error
+		return nil, err
+	} else if err == nil {
+		// wireguard found, can return it
+		return wireguard, nil
+	}
+
+	// this is somehow expected. either reconcilation was triggered
+	// by peer (see SetupWithManager), or wireguard resource was
+	// deleted. checking if it was triggered by peer
+	peer := &v1alpha1.WireguardPeer{}
+	err = r.Get(ctx, key, peer)
+	if err != nil {
+		return nil, err
+	}
+
+	// peer was found, but we still need to fetch wireguard resource
+	key.Name = peer.Spec.WireguardRef
+	err = r.Get(ctx, key, wireguard)
+	if err != nil {
+		return nil, err
+	}
+
+	// successfully found wireguard, can finally return it
+	return wireguard, nil
+}
+
 func (r *WireguardReconciler) getPeers(
-	ctx context.Context, wg *v1alpha1.Wireguard) (v1alpha1.WireguardPeerList, error) {
+	ctx context.Context, wg client.Object) (v1alpha1.WireguardPeerList, error) {
 
 	var allPeers v1alpha1.WireguardPeerList
-	err := r.List(ctx, &allPeers)
+	opts := &client.ListOptions{Namespace: wg.GetNamespace()}
+	err := r.List(ctx, &allPeers, opts)
 	if err != nil {
 		return v1alpha1.WireguardPeerList{}, err
 	}

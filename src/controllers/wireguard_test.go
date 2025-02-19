@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 
@@ -96,10 +96,6 @@ func TestWireguardSecret(t *testing.T) {
 		assert.NotContains(t, config, "Endpoint =")
 
 		lines := []string{
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 192.168.0.0/16 --jump DROP",
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 172.16.0.0/12 --jump DROP",
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 10.0.0.0/8 --jump DROP",
-			"PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 169.254.169.254/32 --jump DROP",
 			"[Peer]",
 			"SaveConfig = false",
 			fmt.Sprintf("AllowedIPs = %s", peer.Spec.Address),
@@ -173,10 +169,8 @@ func TestWireguardDeployment(t *testing.T) {
 		description: "with external dns spec",
 		wireguard: dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{
-				DNS: &v1alpha1.DNS{
-					DeployServer: false,
-					Address:      "127.0.0.1",
-				}},
+				DNS: "127.0.0.1",
+			},
 			v1alpha1.WireguardStatus{},
 		),
 	}}
@@ -206,6 +200,9 @@ func TestWireguardDeployment(t *testing.T) {
 		wantHash := makeHash(config)
 		gotHash := podAnnotations["vpn.ahova.com/config-hash"]
 		assert.Equal(t, wantHash, gotHash)
+
+		containers := deploy.Spec.Template.Spec.Containers
+		assert.Len(t, containers, len(wg.Spec.Sidecars)+1)
 	})
 
 	for _, tc := range testCases {
@@ -353,29 +350,6 @@ func TestWireguardConfigMap(t *testing.T) {
 		wireguard   v1alpha1.Wireguard
 	}
 
-	sidecar := corev1.Container{
-		Name:  "wireguard-exporter",
-		Image: "docker.io/mindflavor/prometheus-wireguard-exporter:3.6.6",
-		Args: []string{
-			"--verbose", "true",
-			"--extract_names_config_files", "/config/wg0.conf",
-		},
-		VolumeMounts: []corev1.VolumeMount{{
-			Name:      "config",
-			ReadOnly:  true,
-			MountPath: "/config",
-		}},
-		SecurityContext: &corev1.SecurityContext{
-			RunAsUser:  toPtr[int64](0),
-			RunAsGroup: toPtr[int64](0),
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{
-					"NET_ADMIN",
-				},
-			},
-		},
-	}
-
 	testCases := []testCase{{
 		description: "default configuration",
 		wireguard: dsl.GenerateWireguard(
@@ -385,15 +359,7 @@ func TestWireguardConfigMap(t *testing.T) {
 	}, {
 		description: "internal dns configuration",
 		wireguard: dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			DNS: &v1alpha1.DNS{
-				DeployServer: false,
-				Address:      "10.96.0.1",
-			},
-		}, v1alpha1.WireguardStatus{}),
-	}, {
-		description: "sidecar configuration",
-		wireguard: dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			Sidecars: []corev1.Container{sidecar},
+			DNS: "10.96.0.1",
 		}, v1alpha1.WireguardStatus{}),
 	}}
 

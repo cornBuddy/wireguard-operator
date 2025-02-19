@@ -1,8 +1,0 @@
----
-apiVersion: vpn.ahova.com/v1alpha1
-kind: WireguardPeer
-metadata:
-  name: peer-sample
-spec:
-  wireguardRef: wireguard-sample
-  address: 192.168.1.2/32

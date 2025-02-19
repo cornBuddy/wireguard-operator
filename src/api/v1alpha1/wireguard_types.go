@@ -7,17 +7,22 @@ import (
 
 type WireguardSpec struct {
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=3
+	// +kubebuilder:validation:Maximum=10
 	// +kubebuilder:validation:ExclusiveMaximum=false
 	// +kubebuilder:default=1
 
 	// Replicas defines the number of Wireguard instances
 	Replicas int32 `json:"replicas,omitempty"`
 
+	// +kubebuilder:default="ClusterIP"
+
+	// Type of the service to be created
+	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
+
 	// Public address to the wireguard network
 	EndpointAddress *string `json:"endpointAddress,omitempty"`
 
-	// +kubebuilder:default="0.0.0.0/0, ::/0"
+	// +kubebuilder:default="0.0.0.0/0"
 
 	// IP addresses allowed to be routed
 	AllowedIPs string `json:"allowedIPs,omitempty"`
@@ -27,13 +32,13 @@ type WireguardSpec struct {
 	// Address space to use
 	Address `json:"address,omitempty"`
 
-	// +kubebuilder:default={}
+	// +kubebuilder:default="1.1.1.1"
+
+	// DNS configuration for peer
+	DNS string `json:"dns,omitempty"`
 
 	// Do not allow connections from peer to DropConnectionsTo IP addresses
 	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
-
-	// DNS configuration for peer
-	DNS *DNS `json:"dns,omitempty"`
 
 	// Sidecar containers to run
 	Sidecars []corev1.Container `json:"sidecars,omitempty"`
@@ -41,26 +46,15 @@ type WireguardSpec struct {
 	// Affinity configuration
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
 
-	// +kubebuilder:default="ClusterIP"
-
-	// Type of the service to be created
-	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
-
 	// Annotations for the service resource
 	ServiceAnnotations map[string]string `json:"serviceAnnotations,omitempty"`
-}
 
-type DNS struct {
-	// Indicates whether to use internal kubernetes dns
-	DeployServer bool `json:"deployServer,omitempty"`
-
-	// Address is an IPV4 address of the DNS server
-	Address string `json:"address,omitempty"`
+	// Extra labels for all resources created
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:storageversion
 
 // WireguardPeer is the Schema for the wireguardpeers API
 type Wireguard struct {

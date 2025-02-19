@@ -2,6 +2,8 @@ package factory
 
 import (
 	"bytes"
+	"net"
+	"sort"
 	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
@@ -9,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
 )
 
 type Peer struct {
@@ -61,11 +63,19 @@ func (fact Peer) secret(endpoint, publicKey, privateKey string) (
 	}
 
 	var dns string
-	wireguard := fact.Wireguard
-	if wireguard.Spec.DNS == nil {
-		dns = "127.0.0.1"
+	if net.ParseIP(fact.Wireguard.Spec.DNS) == nil {
+		// seems like a hostname, try to resolve to ip
+		addrs, err := net.LookupHost(fact.Wireguard.Spec.DNS)
+		if err != nil {
+			return nil, err
+		}
+		// lookup output can be not determenistic, so let's sort it to
+		// avoid infinite reconcilation loop
+		sort.Strings(addrs)
+		dns = addrs[0]
 	} else {
-		dns = wireguard.Spec.DNS.Address
+		// string is valid ip addres, can use as DNS config
+		dns = net.ParseIP(fact.Wireguard.Spec.DNS).String()
 	}
 
 	address := fact.Peer.Spec.Address

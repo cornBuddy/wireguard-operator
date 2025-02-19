@@ -1,0 +1,51 @@
+---
+apiVersion: vpn.ahova.com/v1alpha1
+kind: Wireguard
+metadata:
+  name: wireguard-kube-dns
+spec:
+  address: 192.168.1.1/24
+  dns: kube-dns.kube-system.svc
+  serviceType: LoadBalancer
+  serviceAnnotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: udp
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    # default kubelet port
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "10250"
+    # using tcp protocol instead of https because I don't want to implement
+    # authz for kubelet, I just need some basic health check for nodes
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "tcp"
+  affinity:
+    # for some reason, wireguard traffic is not forwarded betweeen zones (eg
+    # if peer picked ip from zone b, and wireguard pod is placed in zone a, pod
+    # in zone a will not receive any traffic), so it's required to force all
+    # wireguard pods to live in different azs
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: topology.kubernetes.io/zone
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/instance
+                operator: In
+                values:
+                  - wireguard-sample
+    # karpenter nodes have `allowed-unsafe-sysctls` property configured, which
+    # is a prerequisite for wireguard
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: karpenter.sh/nodepool
+                operator: In
+                values:
+                  - default
+
+---
+apiVersion: vpn.ahova.com/v1alpha1
+kind: WireguardPeer
+metadata:
+  name: peer-kube-dns
+spec:
+  wireguardRef: wireguard-kube-dns
+  address: 192.168.1.2/32

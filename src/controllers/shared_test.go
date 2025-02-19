@@ -3,13 +3,12 @@ package controllers
 import (
 	"testing"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
-
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
 )
 
 func TestKeyGeneration(t *testing.T) {

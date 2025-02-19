@@ -12,12 +12,13 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	vpnv1alpha1 "github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/controllers"
+	vpnv1alpha1 "github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -34,10 +35,16 @@ func init() {
 }
 
 func main() {
+	namespace, found := os.LookupEnv("POD_NAMESPACE")
+	if !found {
+		setupLog.Info("POD_NAMESPACE env var is not set")
+		os.Exit(1)
+	}
+
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9080", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9081", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
@@ -57,6 +64,11 @@ func main() {
 		LeaderElectionID:       "6a404818.ahova.com",
 		Metrics: server.Options{
 			BindAddress: metricsAddr,
+		},
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				namespace: cache.Config{},
+			},
 		},
 	})
 	if err != nil {

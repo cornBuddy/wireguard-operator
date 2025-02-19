@@ -1,12 +1,46 @@
 ---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: wireguard-sidecar
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: wireguard-sidecar
+  podMetricsEndpoints:
+    - port: exporter
+
+---
 apiVersion: vpn.ahova.com/v1alpha1
 kind: Wireguard
 metadata:
-  name: wireguard-sample
+  name: wireguard-sidecar
 spec:
-  replicas: 3
-  address: 192.168.1.1/24
-  dropConnectionsTo: []
+  address: 192.168.2.1/24
+  sidecars:
+    - name: exporter
+      image: docker.io/mindflavor/prometheus-wireguard-exporter:3.6.6
+      args:
+        - --export_latest_handshake_delay
+        - "true"
+        - --verbose
+        - "true"
+        - --extract_names_config_files
+        - /config/wg0.conf
+      ports:
+        - containerPort: 9586
+          name: exporter
+          protocol: TCP
+      volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /config
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        capabilities:
+          add:
+            - NET_ADMIN
   serviceType: LoadBalancer
   serviceAnnotations:
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -17,9 +51,6 @@ spec:
     # using tcp protocol instead of https because I don't want to implement
     # authz for kubelet, I just need some basic health check for nodes
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "tcp"
-  dns:
-    deployServer: false
-    address: 10.100.0.10
   affinity:
     # for some reason, wireguard traffic is not forwarded betweeen zones (eg
     # if peer picked ip from zone b, and wireguard pod is placed in zone a, pod
@@ -33,7 +64,7 @@ spec:
               - key: app.kubernetes.io/instance
                 operator: In
                 values:
-                  - wireguard-sample
+                  - wireguard-sidecar
     # karpenter nodes have `allowed-unsafe-sysctls` property configured, which
     # is a prerequisite for wireguard
     nodeAffinity:
@@ -44,3 +75,12 @@ spec:
                 operator: In
                 values:
                   - default
+
+---
+apiVersion: vpn.ahova.com/v1alpha1
+kind: WireguardPeer
+metadata:
+  name: peer-sidecar
+spec:
+  wireguardRef: wireguard-sidecar
+  address: 192.168.2.2/32

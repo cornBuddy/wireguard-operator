@@ -1,6 +1,5 @@
-namespace: wireguard-operator
-bases:
+---
+resources:
 - ../crd
 - ../rbac
 - ../manager
-- ../prometheus

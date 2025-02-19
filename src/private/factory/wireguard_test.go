@@ -4,24 +4,50 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
-
+	"github.com/poy/onpar"
+	"github.com/stretchr/testify/assert"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/poy/onpar"
-	"github.com/stretchr/testify/assert"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
 )
+
+func TestWireguardLabels(t *testing.T) {
+	t.Parallel()
+
+	testCases := []map[string]string{{
+		"kek": "lel",
+	}, {
+		"app.kubernetes.io/managed-by": "kek",
+	}}
+
+	for _, labels := range testCases {
+		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			Labels: labels,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+
+		got := fact.Labels()
+		for key, value := range labels {
+			assert.Contains(t, got, key)
+			assert.Equal(t, value, got[key])
+		}
+	}
+}
 
 func TestWireguardResourcesShouldHaveProperDecorations(t *testing.T) {
 	t.Parallel()
 
-	secret, err := defaultWgFact.Secret("kekeke", "kekeke")
-	assert.Nil(t, err)
+	o := onpar.New(t)
+	defer o.Run()
 
-	deploy, err := defaultWgFact.Deployment("kekeke")
+	secret, err := defaultWgFact.Secret("kekeke", "kekeke")
 	assert.Nil(t, err)
 
 	configMap, err := defaultWgFact.ConfigMap()
@@ -30,13 +56,44 @@ func TestWireguardResourcesShouldHaveProperDecorations(t *testing.T) {
 	service, err := defaultWgFact.Service()
 	assert.Nil(t, err)
 
-	var resources []metav1.Object = []metav1.Object{
-		secret, deploy, configMap, service,
-	}
-	for _, resource := range resources {
-		shouldHaveProperDecorations(t, resource)
+	deploy, err := defaultWgFact.Deployment("kekeke")
+	assert.Nil(t, err)
+
+	defaultLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "wireguard-operator",
 	}
 
+	o.Spec("Pods", func(t *testing.T) {
+		assert.Equal(t, defaultLabels, deploy.Spec.Template.Labels)
+	})
+
+	type testCase struct {
+		Name     string
+		Resource metav1.Object
+	}
+
+	defaults := onpar.TableSpec(o, func(t *testing.T, tc testCase) {
+		assert.Equal(t, defaultLabels, tc.Resource.GetLabels())
+		shouldHaveProperAnnotations(t, tc.Resource)
+	})
+
+	testCases := []testCase{{
+		Name:     "Service",
+		Resource: secret,
+	}, {
+		Name:     "Deployment",
+		Resource: deploy,
+	}, {
+		Name:     "ConfigMap",
+		Resource: configMap,
+	}, {
+		Name:     "Service",
+		Resource: service,
+	}}
+
+	for _, tc := range testCases {
+		defaults.Entry(tc.Name, tc)
+	}
 }
 
 func TestWireguardExtractEndpoint(t *testing.T) {
@@ -102,9 +159,8 @@ func TestWireguardConfigMap(t *testing.T) {
 	assert.NotNil(t, configMap)
 
 	data := configMap.Data
-	assert.Contains(t, data, "unbound.conf")
+	assert.Len(t, data, 1)
 	assert.Contains(t, data, "entrypoint.sh")
-	assert.NotEmpty(t, data["unbound.conf"])
 	assert.NotEmpty(t, data["entrypoint.sh"])
 
 	ep := data["entrypoint.sh"]
@@ -228,13 +284,11 @@ func TestWireguardSecret(t *testing.T) {
 			fmt.Sprintf("Address = %s", wg.Spec.Address),
 			fmt.Sprintf("PrivateKey = %s", wantPrivKey),
 			fmt.Sprintf("ListenPort = %d", wireguardPort),
-			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 192.168.0.0/16 --jump DROP",
-			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 172.16.0.0/12 --jump DROP",
-			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 10.0.0.0/8 --jump DROP",
-			// "PostUp = iptables --insert FORWARD --source 192.168.254.1/24 --destination 169.254.169.254/32 --jump DROP",
+			fmt.Sprintf("[Peer]\n# friendly_name = %s", defaultPeer.GetName()),
 			"PostUp = iptables --append FORWARD --in-interface %i --jump ACCEPT",
 			"PostUp = iptables --append FORWARD --out-interface %i --jump ACCEPT",
 			"PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
+			"SaveConfig = false",
 		}
 
 		for _, line := range lines {
@@ -288,19 +342,49 @@ func TestWireguardDeployment(t *testing.T) {
 		wireguard   v1alpha1.Wireguard
 	}
 
+	sidecar := corev1.Container{
+		Name:  "wireguard-exporter",
+		Image: "docker.io/mindflavor/prometheus-wireguard-exporter:3.6.6",
+		Args: []string{
+			"--verbose", "true",
+			"--extract_names_config_files", "/config/wg0.conf",
+		},
+		VolumeMounts: []corev1.VolumeMount{{
+			Name:      "config",
+			ReadOnly:  true,
+			MountPath: "/config",
+		}},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:  toPtr[int64](0),
+			RunAsGroup: toPtr[int64](0),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{
+					"NET_ADMIN",
+				},
+			},
+		},
+	}
+
 	testCases := []testCase{{
-		description: "default configuration",
+		description: "defaults",
 		wireguard: dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{},
 			v1alpha1.WireguardStatus{},
 		),
 	}, {
-		description: "internal dns configuration",
+		description: "external dns",
 		wireguard: dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			DNS: &v1alpha1.DNS{
-				DeployServer: false,
-				Address:      "127.0.0.1",
-			},
+			DNS: "1.1.1.1",
+		}, v1alpha1.WireguardStatus{}),
+	}, {
+		description: "internal dns",
+		wireguard: dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			DNS: "internal.dns.svc",
+		}, v1alpha1.WireguardStatus{}),
+	}, {
+		description: "sidecar",
+		wireguard: dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			Sidecars: []corev1.Container{sidecar},
 		}, v1alpha1.WireguardStatus{}),
 	}}
 
@@ -319,8 +403,13 @@ func TestWireguardDeployment(t *testing.T) {
 		podSpec := deploy.Spec.Template.Spec
 		epMode := podSpec.Volumes[1].ConfigMap.Items[0].Mode
 		assert.Equal(t, toPtr[int32](0755), epMode)
+		assert.Len(t, podSpec.Volumes, 2)
+		assert.Nil(t, podSpec.DNSConfig)
 
-		wgCont := podSpec.Containers[0]
+		containers := podSpec.Containers
+		assert.Len(t, containers, len(test.wireguard.Spec.Sidecars)+1)
+
+		wgCont := containers[0]
 		assert.Equal(t, "wireguard", wgCont.Name)
 		assert.Len(t, wgCont.Command, 1)
 		assert.Contains(t, wgCont.Command, "/opt/bin/entrypoint.sh",
@@ -358,46 +447,4 @@ func TestWireguardDeployment(t *testing.T) {
 	for _, tc := range testCases {
 		spec.Entry(tc.description, tc)
 	}
-
-	o.Spec("default dns config", func(t *testing.T) {
-		deploy, err := defaultWgFact.Deployment(hashStub)
-		assert.Nil(t, err)
-
-		podSpec := deploy.Spec.Template.Spec
-		assert.Len(t, podSpec.Volumes, 3)
-		assert.Len(t, podSpec.Containers, 2)
-
-		wantDnsConfig := &corev1.PodDNSConfig{
-			Nameservers: []string{"127.0.0.1"},
-		}
-		assert.EqualValues(t, wantDnsConfig, podSpec.DNSConfig)
-		assert.Equal(t, corev1.DNSNone, podSpec.DNSPolicy,
-			"should set proper DNS none policy by default")
-	})
-
-	o.Spec("internal dns configuration", func(t *testing.T) {
-		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			DNS: &v1alpha1.DNS{
-				DeployServer: false,
-				Address:      "127.0.0.1",
-			},
-		}, v1alpha1.WireguardStatus{})
-		fact := Wireguard{
-			Scheme:    scheme,
-			Wireguard: wg,
-			Peers:     v1alpha1.WireguardPeerList{},
-		}
-		deploy, err := fact.Deployment(hashStub)
-		assert.Nil(t, err)
-
-		podSpec := deploy.Spec.Template.Spec
-		assert.Nil(t, podSpec.DNSConfig)
-		assert.Equal(t, corev1.DNSClusterFirst, podSpec.DNSPolicy)
-		assert.Len(t, podSpec.Volumes, 2)
-		assert.Len(t, podSpec.Containers, 1)
-
-		containers := podSpec.Containers
-		assert.Len(t, containers, 1)
-	})
-
 }

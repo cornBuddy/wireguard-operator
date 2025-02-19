@@ -4,17 +4,53 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
-
+	"github.com/poy/onpar"
+	"github.com/stretchr/testify/assert"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/poy/onpar"
-	"github.com/stretchr/testify/assert"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/test/dsl"
 )
+
+func TestPeerSecret(t *testing.T) {
+	t.Parallel()
+
+	o := onpar.New(t)
+	defer o.Run()
+
+	o.Spec("should resolve external dns", func(t *testing.T) {
+		dns := "one.one.one.one"
+		wg := dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{DNS: dns},
+			v1alpha1.WireguardStatus{},
+		)
+		err := wgDsl.Apply(ctx, &wg)
+		assert.Nil(t, err)
+
+		peer := dsl.GeneratePeer(
+			v1alpha1.WireguardPeerSpec{WireguardRef: wg.GetName()},
+			v1alpha1.WireguardPeerStatus{},
+		)
+		err = peerDsl.Apply(ctx, &peer)
+		assert.Nil(t, err)
+
+		secret := &corev1.Secret{}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			key := types.NamespacedName{
+				Name:      peer.GetName(),
+				Namespace: peer.GetNamespace(),
+			}
+			err := k8sClient.Get(ctx, key, secret)
+			assert.Nil(c, err)
+			assert.Contains(c, secret.Data, "config")
+		}, timeout, tick)
+
+		config := string(secret.Data["config"])
+		assert.Contains(t, config, "DNS = 1.0.0.1\n")
+	})
+}
 
 func TestPeerStatus(t *testing.T) {
 	t.Parallel()
@@ -22,56 +58,39 @@ func TestPeerStatus(t *testing.T) {
 	o := onpar.New(t)
 	defer o.Run()
 
-	o.Spec("should set public key to status when explicitly defined in the spec", func(t *testing.T) {
-		creds, err := wgtypes.GeneratePrivateKey()
-		assert.Nil(t, err)
+	type testCase struct {
+		description string
+		peerSpec    v1alpha1.WireguardPeerSpec
+	}
 
+	creds, err := wgtypes.GeneratePrivateKey()
+	assert.Nil(t, err)
+
+	testCases := []testCase{{
+		description: "should set pub key if defined in spec",
+		peerSpec: v1alpha1.WireguardPeerSpec{
+			PublicKey: toPtr(creds.PublicKey().String()),
+		},
+	}, {
+		description: "should set pub key if not defined in spec",
+		peerSpec:    v1alpha1.WireguardPeerSpec{},
+	}}
+
+	table := onpar.TableSpec(o, func(t *testing.T, tc testCase) {
 		wg := dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{},
 			v1alpha1.WireguardStatus{},
 		)
-		pubKey := creds.PublicKey().String()
-		peer := dsl.GeneratePeer(v1alpha1.WireguardPeerSpec{
-			WireguardRef: wg.GetName(),
-			PublicKey:    toPtr(pubKey),
-		}, v1alpha1.WireguardPeerStatus{})
-
 		assert.Eventually(t, func() bool {
 			err := wgDsl.Apply(ctx, &wg)
 			return err == nil
 		}, timeout, tick)
 
-		assert.Eventually(t, func() bool {
-			err := peerDsl.Apply(ctx, &peer)
-			return err == nil
-		}, timeout, tick)
-
-		key := types.NamespacedName{
-			Namespace: peer.GetNamespace(),
-			Name:      peer.GetName(),
-		}
-		assert.Eventually(t, func() bool {
-			err := k8sClient.Get(ctx, key, &peer)
-			return err == nil
-		}, timeout, tick)
-
-		assert.Equal(t, pubKey, *peer.Status.PublicKey)
-	})
-
-	o.Spec("should set public key to status when after it's written in the secret", func(t *testing.T) {
-		wg := dsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{},
-			v1alpha1.WireguardStatus{},
+		tc.peerSpec.WireguardRef = wg.GetName()
+		peer := dsl.GeneratePeer(
+			tc.peerSpec,
+			v1alpha1.WireguardPeerStatus{},
 		)
-		peer := dsl.GeneratePeer(v1alpha1.WireguardPeerSpec{
-			WireguardRef: wg.GetName(),
-		}, v1alpha1.WireguardPeerStatus{})
-
-		assert.Eventually(t, func() bool {
-			err := wgDsl.Apply(ctx, &wg)
-			return err == nil
-		}, timeout, tick)
-
 		assert.Eventually(t, func() bool {
 			err := peerDsl.Apply(ctx, &peer)
 			return err == nil
@@ -95,6 +114,10 @@ func TestPeerStatus(t *testing.T) {
 		pubKey := string(secret.Data["public-key"])
 		assert.Equal(t, pubKey, *peer.Status.PublicKey)
 	})
+
+	for _, tc := range testCases {
+		table.Entry(tc.description, tc)
+	}
 }
 
 func TestPeerEndpoint(t *testing.T) {

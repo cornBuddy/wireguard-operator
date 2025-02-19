@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +15,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cisco-open/k8s-objectmatcher/patch"
+)
+
+const (
+	wireguardRef = ".spec.wireguardRef"
 )
 
 type endpointExtractor func(v1alpha1.Wireguard, corev1.Service) string

@@ -3,23 +3,22 @@ package factory
 import (
 	"bytes"
 	"fmt"
-	"strings"
+	"maps"
 	"text/template"
 
 	"github.com/cisco-open/k8s-objectmatcher/patch"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/ahova/ahova-vpn/services/wireguard-operator/api/v1alpha1"
 )
 
 const (
-	dnsImage       = "docker.io/klutchell/unbound:v1.17.1"
 	wireguardImage = "linuxserver/wireguard:1.0.20210914"
 	wireguardPort  = 51820
 
@@ -53,6 +52,16 @@ type Wireguard struct {
 	*runtime.Scheme
 	v1alpha1.Wireguard
 	Peers v1alpha1.WireguardPeerList
+}
+
+// Returns labels for the wireguard resource
+func (fact Wireguard) Labels() map[string]string {
+	labels := map[string]string{
+		"app.kubernetes.io/managed-by": "wireguard-operator",
+	}
+
+	maps.Copy(labels, fact.Wireguard.Spec.Labels)
+	return labels
 }
 
 // Returns desired endpoint address for peer
@@ -98,37 +107,23 @@ func (fact Wireguard) extractEndpointFromLoadBalancer(svc corev1.Service) string
 }
 
 func (fact Wireguard) ConfigMap() (*corev1.ConfigMap, error) {
-	tmpl, err := template.New("unbound").Parse(unboundConfTmpl)
-	if err != nil {
-		return nil, err
-	}
-
-	buf := new(bytes.Buffer)
-	if err := tmpl.Execute(buf, fact.Wireguard.Spec); err != nil {
-		return nil, err
-	}
-
-	unboundConf := buf.String()
-	configMap := &corev1.ConfigMap{
+	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fact.Wireguard.GetName(),
 			Namespace: fact.Wireguard.GetNamespace(),
+			Labels:    fact.Labels(),
 		},
 		Data: map[string]string{
-			"unbound.conf":  unboundConf,
 			"entrypoint.sh": entrypointSh,
 		},
 	}
 
-	if err := annotator.SetLastAppliedAnnotation(configMap); err != nil {
+	result, err := fact.decorate(cm)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := ctrl.SetControllerReference(&fact.Wireguard, configMap, fact.Scheme); err != nil {
-		return nil, err
-	}
-
-	return configMap, nil
+	return result.(*corev1.ConfigMap), nil
 }
 
 func (fact Wireguard) Service() (*corev1.Service, error) {
@@ -141,15 +136,16 @@ func (fact Wireguard) Service() (*corev1.Service, error) {
 		externalTrafficPolicy = ""
 	}
 
-	service := &corev1.Service{
+	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        wg.GetName(),
 			Namespace:   wg.GetNamespace(),
+			Labels:      fact.Labels(),
 			Annotations: wg.Spec.ServiceAnnotations,
 		},
 		Spec: corev1.ServiceSpec{
 			Type:     wg.Spec.ServiceType,
-			Selector: getLabels(wg.Name),
+			Selector: fact.Labels(),
 			Ports: []corev1.ServicePort{{
 				Name:     "wireguard",
 				Protocol: "UDP",
@@ -159,15 +155,12 @@ func (fact Wireguard) Service() (*corev1.Service, error) {
 		},
 	}
 
-	if err := annotator.SetLastAppliedAnnotation(service); err != nil {
+	result, err := fact.decorate(svc)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := ctrl.SetControllerReference(&fact.Wireguard, service, fact.Scheme); err != nil {
-		return nil, err
-	}
-
-	return service, nil
+	return result.(*corev1.Service), nil
 }
 
 // Returns desired secret for the current wireguard instance
@@ -186,8 +179,9 @@ func (fact Wireguard) Secret(pubKey, privKey string) (*corev1.Secret, error) {
 
 		allowedIPs := peer.Spec.Address
 		wireguardPeers = append(wireguardPeers, serverPeer{
-			PublicKey:  *peer.Status.PublicKey,
-			AllowedIPs: allowedIPs,
+			AllowedIPs:   allowedIPs,
+			FriendlyName: peer.GetName(),
+			PublicKey:    *peer.Status.PublicKey,
 		})
 	}
 	spec := serverConfig{
@@ -206,6 +200,7 @@ func (fact Wireguard) Secret(pubKey, privKey string) (*corev1.Secret, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fact.Wireguard.Name,
 			Namespace: fact.Wireguard.Namespace,
+			Labels:    fact.Labels(),
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
@@ -215,40 +210,66 @@ func (fact Wireguard) Secret(pubKey, privKey string) (*corev1.Secret, error) {
 		},
 	}
 
-	if err := annotator.SetLastAppliedAnnotation(secret); err != nil {
+	result, err := fact.decorate(secret)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := ctrl.SetControllerReference(&fact.Wireguard, secret, fact.Scheme); err != nil {
-		return nil, err
-	}
-
-	return secret, nil
+	return result.(*corev1.Secret), nil
 }
 
 func (fact Wireguard) Deployment(configHash string) (*appsv1.Deployment, error) {
 	deploy := fact.deployment(configHash)
-	if err := annotator.SetLastAppliedAnnotation(&deploy); err != nil {
+	result, err := fact.decorate(&deploy)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := ctrl.SetControllerReference(&fact.Wireguard, &deploy, fact.Scheme); err != nil {
-		return nil, err
-	}
-
-	return &deploy, nil
+	return result.(*appsv1.Deployment), nil
 }
 
 // Returns desired deployment for the current wireguard instance
 func (fact Wireguard) deployment(configHash string) appsv1.Deployment {
 	wireguard := fact.Wireguard
-	volumes, mounts := getVolumes(wireguard)
+	volumes := []corev1.Volume{{
+		Name: "config",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: wireguard.Name,
+				Items: []corev1.KeyToPath{{
+					Key:  "config",
+					Path: "wg0.conf",
+				}},
+			},
+		},
+	}, {
+		Name: "entrypoint",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: wireguard.Name,
+				},
+				Items: []corev1.KeyToPath{{
+					Key:  "entrypoint.sh",
+					Path: "entrypoint.sh",
+					Mode: toPtr[int32](0755),
+				}},
+			},
+		},
+	}}
+	mounts := []corev1.VolumeMount{{
+		Name:      "config",
+		MountPath: "/etc/wireguard",
+	}, {
+		Name:      "entrypoint",
+		MountPath: "/opt/bin",
+	}}
 	wireguardContainer := corev1.Container{
 		Image:           wireguardImage,
 		Name:            "wireguard",
 		Command:         []string{"/opt/bin/entrypoint.sh"},
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		VolumeMounts:    mounts.wireguard,
+		VolumeMounts:    mounts,
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: toPtr(true),
 			Capabilities: &corev1.Capabilities{
@@ -299,18 +320,20 @@ func (fact Wireguard) deployment(configHash string) appsv1.Deployment {
 			PeriodSeconds:       10,
 		},
 	}
+	containers := append(
+		[]corev1.Container{wireguardContainer},
+		wireguard.Spec.Sidecars...,
+	)
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: getLabels(wireguard.Name),
+			Labels: fact.Labels(),
 			Annotations: map[string]string{
 				configHashAnnotation: configHash,
 			},
 		},
 		Spec: corev1.PodSpec{
-			Affinity: wireguard.Spec.Affinity,
-			Containers: []corev1.Container{
-				wireguardContainer,
-			},
+			Affinity:   wireguard.Spec.Affinity,
+			Containers: containers,
 			SecurityContext: &corev1.PodSecurityContext{
 				Sysctls: []corev1.Sysctl{{
 					Name:  "net.ipv4.ip_forward",
@@ -329,176 +352,43 @@ func (fact Wireguard) deployment(configHash string) appsv1.Deployment {
 			Volumes: volumes,
 		},
 	}
-	unboundContainer := corev1.Container{
-		Image:           dnsImage,
-		Name:            "unbound",
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"unbound"},
-		VolumeMounts:    mounts.unbound,
-		Args: []string{
-			"-d",
-			"-c",
-			"/etc/unbound/unbound.conf",
-		},
-	}
-
-	if wireguard.Spec.DNS == nil {
-		podTemplate.Spec.DNSPolicy = corev1.DNSNone
-		podTemplate.Spec.DNSConfig = &corev1.PodDNSConfig{
-			Nameservers: []string{"127.0.0.1"},
-		}
-		podTemplate.Spec.Containers = append(podTemplate.Spec.Containers, unboundContainer)
-
-		// returning early to skip further not nil check
-		return appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      wireguard.Name,
-				Namespace: wireguard.Namespace,
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: &wireguard.Spec.Replicas,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: getLabels(wireguard.Name),
-				},
-				Template: podTemplate,
-			},
-		}
-	}
-
-	if wireguard.Spec.DNS.DeployServer {
-		podTemplate.Spec.DNSPolicy = corev1.DNSNone
-		podTemplate.Spec.DNSConfig = &corev1.PodDNSConfig{
-			Nameservers: []string{"127.0.0.1"},
-		}
-		podTemplate.Spec.Containers = append(podTemplate.Spec.Containers, unboundContainer)
-	} else {
-		podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
-		podTemplate.Spec.DNSConfig = nil
-	}
 
 	return appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wireguard.Name,
 			Namespace: wireguard.Namespace,
+			Labels:    fact.Labels(),
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &wireguard.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: getLabels(wireguard.Name),
+				MatchLabels: fact.Labels(),
 			},
 			Template: podTemplate,
 		},
 	}
 }
 
-type containerMounts struct {
-	unbound   []corev1.VolumeMount
-	wireguard []corev1.VolumeMount
-}
-
-func getVolumes(wireguard v1alpha1.Wireguard) ([]corev1.Volume, containerMounts) {
-	volumes := []corev1.Volume{{
-		Name: "config",
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: wireguard.Name,
-				Items: []corev1.KeyToPath{{
-					Key:  "config",
-					Path: "wg0.conf",
-				}},
-			},
-		},
-	}, {
-		Name: "entrypoint",
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: wireguard.Name,
-				},
-				Items: []corev1.KeyToPath{{
-					Key:  "entrypoint.sh",
-					Path: "entrypoint.sh",
-					Mode: toPtr[int32](0755),
-				}},
-			},
-		},
-	}}
-	mounts := containerMounts{
-		unbound: []corev1.VolumeMount{},
-		wireguard: []corev1.VolumeMount{{
-			Name:      "config",
-			MountPath: "/etc/wireguard",
-		}, {
-			Name:      "entrypoint",
-			MountPath: "/opt/bin",
-		}},
+func (fact Wireguard) decorate(obj client.Object) (client.Object, error) {
+	wg := &fact.Wireguard
+	scheme := fact.Scheme
+	if err := ctrl.SetControllerReference(wg, obj, scheme); err != nil {
+		return nil, err
 	}
 
-	if wireguard.Spec.DNS == nil {
-		volumes = append(volumes, corev1.Volume{
-			Name: "unbound-config",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: wireguard.Name,
-					},
-					Items: []corev1.KeyToPath{{
-						Key:  "unbound.conf",
-						Path: "unbound.conf",
-					}},
-				},
-			},
-		})
-		mounts.unbound = append(mounts.unbound, corev1.VolumeMount{
-			Name:      "unbound-config",
-			ReadOnly:  true,
-			MountPath: "/etc/unbound",
-		})
-
-		// returning early to skip further not nil check
-		return volumes, mounts
+	if err := annotator.SetLastAppliedAnnotation(obj); err != nil {
+		return nil, err
 	}
 
-	if wireguard.Spec.DNS.DeployServer {
-		volumes = append(volumes, corev1.Volume{
-			Name: "unbound-config",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: wireguard.Name,
-					},
-					Items: []corev1.KeyToPath{{
-						Key:  "unbound.conf",
-						Path: "unbound.conf",
-					}},
-				},
-			},
-		})
-		mounts.unbound = append(mounts.unbound, corev1.VolumeMount{
-			Name:      "unbound-config",
-			ReadOnly:  true,
-			MountPath: "/etc/unbound",
-		})
-	}
-	return volumes, mounts
-}
-
-func getLabels(name string) map[string]string {
-	imageTag := strings.Split(wireguardImage, ":")[1]
-	return map[string]string{
-		"app.kubernetes.io/name":       "Wireguard",
-		"app.kubernetes.io/instance":   name,
-		"app.kubernetes.io/version":    imageTag,
-		"app.kubernetes.io/part-of":    "wireguard-operator",
-		"app.kubernetes.io/created-by": "controller-manager",
-	}
+	return obj, nil
 }
 
 func toPtr[V any](o V) *V { return &o }
 
 type serverPeer struct {
-	PublicKey  string
-	AllowedIPs v1alpha1.Address
+	AllowedIPs   v1alpha1.Address
+	FriendlyName string
+	PublicKey    string
 }
 
 type serverConfig struct {
@@ -522,33 +412,7 @@ PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 SaveConfig = false
 {{ range .Peers }}
 [Peer]
+# friendly_name = {{ .FriendlyName }}
 PublicKey = {{ .PublicKey }}
 AllowedIPs = {{ .AllowedIPs }}
 {{ end }}`
-
-// template of the unbound config
-const unboundConfTmpl = `
-remote-control:
-	control-enable: yes
-	control-interface: 127.0.0.1
-	control-use-cert: no
-server:
-	num-threads: 1
-	verbosity: 1
-	interface: 0.0.0.0
-	max-udp-size: 3072
-	access-control: 0.0.0.0/0 refuse
-	access-control: 127.0.0.1 allow
-	access-control: {{ .Address }} allow
-	private-address: {{ .Address }}
-	hide-identity: yes
-	hide-version: yes
-	harden-glue: yes
-	harden-dnssec-stripped: yes
-	harden-referral-path: yes
-	unwanted-reply-threshold: 10000000
-	val-log-level: 1
-	cache-min-ttl: 1800
-	cache-max-ttl: 14400
-	prefetch: yes
-	prefetch-key: yes`
