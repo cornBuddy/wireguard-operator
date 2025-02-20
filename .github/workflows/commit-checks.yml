@@ -67,3 +67,22 @@ jobs:
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           TAG: ${{ steps.tag.outputs.new_tag }}
+
+  submit-merge-request:
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - test
+    steps:
+      - uses: actions/checkout@v4
+      - run: >-
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          >> $GITHUB_OUTPUT
+        id: extract_branch
+      - run: |
+          gh pr create \
+          --base main \
+          --head "${{ steps.extract_branch.outputs.branch }}" \
+          --fill-first || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
