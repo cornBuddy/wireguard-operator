@@ -42,13 +42,13 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 	t.Cleanup(func() {
 		t.Log("Deleting wireguard")
 		err := dsl.DeleteWireguard(wgName, namespace)
-		assert.Nil(t, err, "samples should be deletable")
+		assert.Nil(t, err)
 	})
 
+	t.Log("Fetching wireguard secret")
 	secretClient := dsl.Client.CoreV1().Secrets(namespace)
 	opts := metav1.GetOptions{}
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
 		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
@@ -117,9 +117,8 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 		peerConfig = string(secret.Data["config"])
 		assert.NotEmpty(c, peerConfig, "config should not be empty")
 
-		endpointRegex := regexp.
-			MustCompile("Endpoint = .+\\.amazonaws.com:51820")
-		assert.Regexp(c, endpointRegex, peerConfig)
+		ep := regexp.MustCompile("Endpoint = .+\\.amazonaws.com:51820")
+		assert.Regexp(c, ep, peerConfig)
 	}, timeout, tick, "should eventually produce a valid secret")
 
 	var peer compose.ComposeStack
@@ -147,11 +146,19 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 		}
 
 		tcs := []validateCommandOutputTestCase{{
+			message:  "Checking DNS connectivity",
+			command:  []string{"nslookup", "google.com"},
+			contains: "Name:\tgoogle.com",
+		}, {
+			message:  "Checking ICMP connectivity",
+			command:  []string{"ping", "-c", "4", "8.8.8.8"},
+			contains: "4 packets transmitted, 4 received",
+		}, {
 			message:  "Checking internet connectivity",
-			command:  []string{"curl", "-Ss", "https://google.com"},
+			command:  []string{"curl", "-v", "google.com"},
 			contains: "301 Moved",
 		}, {
-			message:  "Executing `wg` command inside peer container",
+			message:  "Checking wireguard data transfer",
 			command:  []string{"wg"},
 			contains: "KiB",
 		}}
