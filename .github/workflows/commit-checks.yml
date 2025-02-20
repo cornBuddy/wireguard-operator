@@ -73,12 +73,11 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           TAG: ${{ steps.tag.outputs.new_tag }}
 
-  submit-merge-request:
+  submit-pull-request:
     runs-on: ubuntu-latest
     permissions: write-all
     needs:
-      - lint
-      - test
+      - release-candidate
     steps:
       - uses: actions/checkout@v4
       - run: >-
