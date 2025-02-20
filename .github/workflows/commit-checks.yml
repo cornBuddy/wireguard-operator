@@ -46,7 +46,7 @@ jobs:
       REGISTRY: ghcr.io
       IMAGE_NAME: cornbuddy/${{ github.event.repository.name }}
     permissions:
-      contents: read
+      contents: write
       packages: write
       attestations: write
       id-token: write
