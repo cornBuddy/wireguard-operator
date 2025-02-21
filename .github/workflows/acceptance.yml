@@ -22,8 +22,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  prepare-env:
+  acceptance:
     runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE: ${{ env.REGISTRY }}/cornbuddy/${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,7 +34,6 @@ jobs:
           fetch-tags: true
       - uses: actions/setup-go@v3
         with:
-          go-version: 'stable'
           check-latest: true
       - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
       - run: kubectl get no
@@ -41,17 +43,7 @@ jobs:
           semver_only: false
       - run: make deploy
         env:
-          IMG_BASE: >-
-            478845996840.dkr.ecr.eu-central-1.amazonaws.com/wireguard-operator
           TAG: ${{ steps.latest-tag.outputs.tag }}
-
-  acceptance:
-    runs-on: ubuntu-latest
-    needs:
-      - prepare-env
-    steps:
-      - uses: actions/checkout@v4
-      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
       - run: make smoke
 
   approve-pull-request:
