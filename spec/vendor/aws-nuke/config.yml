@@ -39,3 +39,6 @@ accounts:
   "478845996840":
     presets:
       - "networking"
+
+blocklist:
+  - 999999999999

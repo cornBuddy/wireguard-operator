@@ -1,8 +1,15 @@
 .PHONY: lint
-lint: tidy fmt vet ## Static analisys of the code
+lint: tidy fmt vet
 
 .PHONY: vendor
-vendor: update tidy ## Packages update and `go mod tidy`
+vendor: update tidy
+
+.PHONY: env
+env:
+	cd vendor/terraform/flavours/$(FLAVOUR)/ \
+		&& terraform init \
+		&& terraform plan \
+		&& terraform apply -auto-approve
 
 .PHONY: clean
 clean:
@@ -17,13 +24,13 @@ vet:
 	go vet ./...
 
 .PHONY: tidy
-tidy: ## Run go mod tidy against code.
+tidy:
 	go mod tidy
 
 .PHONY: fmt
-fmt: ## Run go fmt against code.
+fmt:
 	go fmt ./...
 
 .PHONY: update
-update: ## Updates all packates
+update:
 	go get -u ./...

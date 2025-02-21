@@ -6,6 +6,4 @@ src/bin/*
 # Testcoverage
 coverage.out
 
-# moon
-.moon/cache
-.moon/docker
+.terraform/
