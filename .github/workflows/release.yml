@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: cornbuddy/${{ github.event.repository.name }}
+      IMAGE: ${{ env.REGISTRY }}/cornbuddy/${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,5 +30,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: make docker
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           TAG: ${{ steps.tag.outputs.new_tag }}
+      - run: make docker
+        env:
+          TAG: latest
