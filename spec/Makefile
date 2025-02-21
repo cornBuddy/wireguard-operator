@@ -1,7 +1,12 @@
+.PHONY: lint
+lint: tidy fmt vet ## Static analisys of the code
+
+.PHONY: vendor
+vendor: update tidy ## Packages update and `go mod tidy`
+
 .PHONY: clean
 clean:
-	- kubectl delete wireguard --all
-	- kubectl delete wireguardpeer --all
+	docker compose --file vendor/aws-nuke/docker-compose.yml up --remove-orphans
 
 .PHONY: smoke
 smoke: clean
@@ -19,12 +24,6 @@ tidy: ## Run go mod tidy against code.
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
-.PHONY: lint
-lint: tidy fmt vet ## Static analisys of the code
-
 .PHONY: update
 update: ## Updates all packates
 	go get -u ./...
-
-.PHONY: vendor
-vendor: update tidy ## Packages update and `go mod tidy`

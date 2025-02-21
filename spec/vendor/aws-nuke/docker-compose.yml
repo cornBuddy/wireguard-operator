@@ -1,0 +1,14 @@
+---
+services:
+  aws-nuke:
+    image: ghcr.io/ekristen/aws-nuke:v3.42.0
+    working_dir: /tmp
+    command:
+      - run
+      - --force
+      - --no-dry-run
+    environment:
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+    volumes:
+      - ./config.yml:/tmp/config.yaml:ro

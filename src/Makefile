@@ -31,13 +31,8 @@ help: ## Display this help.
 run: manifests generate install fmt vet test ## Run a controller from your host.
 	go run ./main.go
 
-.PHONY: pre-commit
-pre-commit:
-	pre-commit install
-	pre-commit run --verbose --all-files --show-diff-on-failure
-
 .PHONY: clean
-clean: uninstall ## Cleans up development environment
+clean: uninstall undeploy ## Cleans up development environment
 	- docker rmi $(IMG)
 	- rm $(BIN_PATH)
 

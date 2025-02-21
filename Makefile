@@ -1,9 +1,3 @@
-.PHONY: pre-commit
-pre-commit:
-	pre-commit install
-	pre-commit install --hook-type commit-msg
-	pre-commit run --verbose --all-files --show-diff-on-failure
-
 .PHONY: run
 run:
 	@$(MAKE) -C src run
@@ -39,6 +33,12 @@ docker:
 deploy:
 	@$(MAKE) -C src deploy
 
-.PHONY: undeploy
-undeploy:
-	@$(MAKE) -C src undeploy
+.PHONY: env
+env:
+	@$(MAKE) -C spec env
+
+.PHONY: pre-commit
+pre-commit:
+	pre-commit install
+	pre-commit install --hook-type commit-msg
+	pre-commit run --verbose --all-files --show-diff-on-failure

@@ -1,0 +1,41 @@
+---
+regions:
+  - eu-central-1
+
+resource-types:
+  excludes:
+    - ECRRepository
+    - EC2Image
+    - EC2Snapshot
+    - EC2DefaultSecurityGroupRule
+    - OSPackage
+    - S3Bucket
+    - S3Object
+    - Route53HostedZone
+
+presets:
+  networking:
+    filters:
+      EC2VPC:
+        - property: "IsDefault"
+          value: "true"
+      EC2RouteTable:
+        - property: "DefaultVPC"
+          value: "true"
+      EC2DHCPOption:
+        - property: "DefaultVPC"
+          value: "true"
+      EC2InternetGateway:
+        - property: "DefaultVPC"
+          value: "true"
+      EC2InternetGatewayAttachment:
+        - property: "DefaultVPC"
+          value: "true"
+      EC2Subnet:
+        - property: "DefaultVPC"
+          value: "true"
+
+accounts:
+  "478845996840":
+    presets:
+      - "networking"
