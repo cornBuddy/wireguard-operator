@@ -11,17 +11,6 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
 
 jobs:
-  disapprove-pull-request:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: >-
-          gh pr review "${{ github.event.number }}"
-          --request-changes
-          --body "waiting tests to succeed"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   acceptance:
     runs-on: ubuntu-latest
     strategy:
