@@ -6,14 +6,14 @@ vendor: update tidy
 
 .PHONY: env
 env:
-	cd vendor/terraform/flavours/$(FLAVOUR)/ \
+	cd third_party/terraform/flavours/$(FLAVOUR)/ \
 		&& terraform init \
 		&& terraform plan \
 		&& terraform apply -auto-approve
 
 .PHONY: clean
 clean:
-	docker compose --file vendor/aws-nuke/docker-compose.yml up --remove-orphans
+	docker compose --file third_party/aws-nuke/docker-compose.yml up --remove-orphans
 
 .PHONY: smoke
 smoke: clean
