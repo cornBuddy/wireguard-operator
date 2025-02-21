@@ -7,3 +7,4 @@ src/bin/*
 coverage.out
 
 .terraform/
+*.tfstate
