@@ -25,8 +25,7 @@ jobs:
   acceptance:
     runs-on: ubuntu-latest
     env:
-      REGISTRY: ghcr.io
-      IMAGE: ${{ env.REGISTRY }}/cornbuddy/${{ github.event.repository.name }}
+      IMAGE: ghcr.io/cornbuddy/${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v4
         with:
