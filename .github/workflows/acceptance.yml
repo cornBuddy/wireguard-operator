@@ -33,6 +33,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+      - uses: hashicorp/setup-terraform@v3
       - run: FLAVOUR=${{ matrix.k8s-flavour }} make env
       - run: kubectl get no
       - uses: actions-ecosystem/action-get-latest-tag@v1
