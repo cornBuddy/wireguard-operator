@@ -24,17 +24,16 @@ jobs:
 
   acceptance:
     runs-on: ubuntu-latest
-    env:
-      IMAGE: ghcr.io/cornbuddy/${{ github.event.repository.name }}
+    strategy:
+      matrix:
+        k8s-flavour:
+          - eks-cilium
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-go@v3
-        with:
-          check-latest: true
-      - run: aws eks update-kubeconfig --name $TEST_CLUSTER_NAME
+      - run: FLAVOUR=${{ matrix.k8s-flavour }} make env
       - run: kubectl get no
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: latest-tag
@@ -43,6 +42,7 @@ jobs:
       - run: make deploy
         env:
           TAG: ${{ steps.latest-tag.outputs.tag }}
+          IMAGE: ghcr.io/cornbuddy/${{ github.event.repository.name }}
       - run: make smoke
 
   approve-pull-request:
