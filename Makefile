@@ -1,29 +1,24 @@
+.PHONY: lint
+lint:
+	@$(MAKE) -C spec lint
+	@$(MAKE) -C src lint manifests generate
+
+.PHONY: clean
+clean:
+	@$(MAKE) -C spec clean
+	@$(MAKE) -C src clean
+
+.PHONY: vendor
+vendor:
+	@$(MAKE) -C spec vendor
+	@$(MAKE) -C src vendor
 .PHONY: run
 run:
 	@$(MAKE) -C src run
 
-.PHONY: clean
-clean:
-	@$(MAKE) -C src clean
-	@$(MAKE) -C spec clean
-
-.PHONY: lint
-lint:
-	@$(MAKE) -C src lint manifests generate
-	@$(MAKE) -C spec lint
-
 .PHONY: test
 test:
 	@$(MAKE) -C src test
-
-.PHONY: vendor
-vendor:
-	@$(MAKE) -C src vendor
-	@$(MAKE) -C spec vendor
-
-.PHONY: spec
-smoke:
-	@$(MAKE) -C spec smoke
 
 .PHONY: docker
 docker:
@@ -36,6 +31,10 @@ deploy:
 .PHONY: env
 env:
 	@$(MAKE) -C spec env
+
+.PHONY: spec
+smoke:
+	@$(MAKE) -C spec smoke
 
 .PHONY: pre-commit
 pre-commit:
