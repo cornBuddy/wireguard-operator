@@ -43,7 +43,7 @@ jobs:
       - lint
       - test
     env:
-      IMAGE: ghcr.io/cornbuddy/${{ github.event.repository.name }}
+      REGISTRY: ghcr.io
     permissions:
       contents: write
       packages: write
@@ -70,6 +70,7 @@ jobs:
       - run: make docker
         env:
           TAG: ${{ steps.tag.outputs.new_tag }}
+          IMAGE: ${{ env.REGISTRY }}/cornbuddy/${{ github.event.repository.name }}
 
   submit-pull-request:
     runs-on: ubuntu-latest
