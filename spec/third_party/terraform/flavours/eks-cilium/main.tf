@@ -63,6 +63,7 @@ module "eks" {
     bootstrap_extra_args    = <<-EOT
     [settings.kubernetes]
     "max-pods" = 50
+    "allowed-unsafe-sysctls" = ["net.ipv4.*"]
     EOT
     pre_bootstrap_user_data = <<-EOT
       #!/bin/bash
@@ -105,17 +106,5 @@ module "eks" {
       self        = true,
       description = "allow vxlan traffic from within cluster",
     },
-    # metrics server is run in host mode on that port
-    metrics_server = {
-      protocol    = "TCP",
-      from_port   = 10251,
-      to_port     = 10251,
-      type        = "ingress",
-      self        = true,
-      description = "allow metrics server traffic",
-    },
-  }
-  node_security_group_tags = {
-    "karpenter.sh/discovery" = var.name,
   }
 }
