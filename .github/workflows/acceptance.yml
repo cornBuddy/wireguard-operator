@@ -52,6 +52,7 @@ jobs:
       - acceptance
     steps:
       - uses: actions/checkout@v4
+      - run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
       - uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
