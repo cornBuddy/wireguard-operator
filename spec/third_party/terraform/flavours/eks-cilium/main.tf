@@ -5,6 +5,12 @@ module "vpc" {
   vpc_cidr = var.vpc_cidr
 }
 
+module "export_kubeconfig" {
+  source = "../../modules/eks-export-kubeconfig"
+
+  cluster_name = module.eks.cluster_name
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.20"

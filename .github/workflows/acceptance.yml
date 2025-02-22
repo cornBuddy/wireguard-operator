@@ -3,7 +3,7 @@ name: acceptance tests
 on: pull_request
 
 concurrency:
-  group: "acceptance-${{ github.event.repository.name }}"
+  group: acceptance-${{ github.event.repository.name }}
 
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
