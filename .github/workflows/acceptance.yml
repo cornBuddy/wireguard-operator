@@ -52,4 +52,8 @@ jobs:
       - acceptance
     steps:
       - uses: actions/checkout@v4
-      - run: make clean
+      - uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 15
+          max_attempts: 2
+          command: make clean
