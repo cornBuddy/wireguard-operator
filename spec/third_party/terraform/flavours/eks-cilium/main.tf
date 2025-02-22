@@ -56,7 +56,7 @@ module "eks" {
       sudo systemctl start amazon-ssm-agent
     EOT
   }
-  eks_managed_node_groups = { var.name = {} }
+  eks_managed_node_groups = { "${var.name}" = {} }
 
   enable_cluster_creator_admin_permissions = true
   cluster_additional_security_group_ids    = [module.vpc.default_security_group]
