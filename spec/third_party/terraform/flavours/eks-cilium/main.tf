@@ -24,25 +24,17 @@ module "eks" {
   control_plane_subnet_ids       = module.vpc.private_subnets
   cluster_endpoint_public_access = true
 
-  create_cloudwatch_log_group = false
   cluster_encryption_config   = {}
+  create_cloudwatch_log_group = false
   create_kms_key              = false
 
-  access_entries = merge(
-    {
-      for arn in local.default_admins :
-      "${split("/", arn)[1]}" => {
-        principal_arn       = arn,
-        type                = "STANDARD",
-        policy_associations = local.admin_policy,
-      }
-    },
-    {
-      root = {
-        principal_arn       = "arn:aws:iam::478845996840:root",
-        type                = "STANDARD",
-        policy_associations = local.admin_policy,
-      },
+  access_entries = merge({
+    for arn in local.default_admins :
+    "${split("/", arn)[1]}" => {
+      principal_arn       = arn,
+      type                = "STANDARD",
+      policy_associations = local.admin_policy,
+    }
   })
 
   eks_managed_node_group_defaults = {
