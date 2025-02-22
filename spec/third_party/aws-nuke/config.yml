@@ -1,5 +1,6 @@
 ---
 regions:
+  - global
   - eu-central-1
 
 resource-types:
@@ -14,31 +15,42 @@ resource-types:
     - Route53HostedZone
 
 presets:
+  iam:
+    IAMUser:
+      - property: UserName
+        value: github
+    IAMUserPolicyAttachment:
+      - property: UserName
+        value: github
+    IAMUserAccessKey:
+      - property: UserName
+        value: github
   networking:
     filters:
       EC2VPC:
-        - property: "IsDefault"
+        - property: IsDefault
           value: "true"
       EC2RouteTable:
-        - property: "DefaultVPC"
+        - property: DefaultVPC
           value: "true"
       EC2DHCPOption:
-        - property: "DefaultVPC"
+        - property: DefaultVPC
           value: "true"
       EC2InternetGateway:
-        - property: "DefaultVPC"
+        - property: DefaultVPC
           value: "true"
       EC2InternetGatewayAttachment:
-        - property: "DefaultVPC"
+        - property: DefaultVPC
           value: "true"
       EC2Subnet:
-        - property: "DefaultVPC"
+        - property: DefaultVPC
           value: "true"
 
 accounts:
-  "478845996840":
+  478845996840:
     presets:
-      - "networking"
+      - iam
+      - networking
 
 blocklist:
   - 999999999999

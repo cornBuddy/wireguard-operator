@@ -28,15 +28,6 @@ module "eks" {
   create_cloudwatch_log_group = false
   create_kms_key              = false
 
-  access_entries = merge({
-    for arn in local.default_admins :
-    "${split("/", arn)[1]}" => {
-      principal_arn       = arn,
-      type                = "STANDARD",
-      policy_associations = local.admin_policy,
-    }
-  })
-
   eks_managed_node_group_defaults = {
     desired_size      = 2,
     disk_size         = 8,
@@ -65,9 +56,10 @@ module "eks" {
       sudo systemctl start amazon-ssm-agent
     EOT
   }
-  eks_managed_node_groups = { "${var.name}-infra" = {} }
+  eks_managed_node_groups = { var.name = {} }
 
-  cluster_additional_security_group_ids = [module.vpc.default_security_group]
+  enable_cluster_creator_admin_permissions = true
+  cluster_additional_security_group_ids    = [module.vpc.default_security_group]
   cluster_security_group_additional_rules = {
     # metrics server is run in host mode on that port
     metrics_server = {
