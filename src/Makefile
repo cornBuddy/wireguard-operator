@@ -124,7 +124,6 @@ uninstall: manifests kustomize ## Uninstall CRDs
 deploy: manifests kustomize install ## Deploy controller
 	cd $(DEPLOY)/manager && $(KUSTOMIZE) edit set image wireguard-operator=${IMG}
 	kubectl create namespace wireguard-operator --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.66.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 	$(KUSTOMIZE) build $(DEPLOY)/default | kubectl apply -f -
 
 .PHONY: undeploy
