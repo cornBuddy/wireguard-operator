@@ -18,6 +18,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v3
+        with:
+          go-version: stable
+          check-latest: true
       - uses: actions/setup-python@v4
         with:
           update-environment: false
@@ -28,6 +31,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v3
+        with:
+          go-version: stable
+          check-latest: true
+      - run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
       - run: make test
 
   release-candidate:
