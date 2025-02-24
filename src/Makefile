@@ -4,17 +4,16 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-
-DEPLOY ?= ./config
-
 CONTROLLER_GEN ?= controller-gen
 KUSTOMIZE ?= kustomize
 
-LOCALBIN ?= "bin"
 BIN_PATH ?= "./wireguard-operator"
-IMG_BASE ?= wireguard-operator
+DEPLOY ?= ./config
+LOCALBIN ?= "./bin"
+
+IMAGE ?= wireguard-operator
 TAG ?= latest
-IMG ?= ${IMG_BASE}:${TAG}
+IMG ?= ${IMAGE}:${TAG}
 
 ##@ General
 

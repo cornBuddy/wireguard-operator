@@ -1,10 +1,7 @@
+coverage.out
 
-# Binaries for programs and plugins
 wireguard-operator
 src/bin/*
 
-# Testcoverage
-coverage.out
-
 .terraform/
-*.tfstate
+*.tfstate*

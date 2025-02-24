@@ -30,16 +30,6 @@ spec:
                 operator: In
                 values:
                   - wireguard-sample
-    # karpenter nodes have `allowed-unsafe-sysctls` property configured, which
-    # is a prerequisite for wireguard
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: karpenter.sh/nodepool
-                operator: In
-                values:
-                  - default
 
 ---
 apiVersion: vpn.ahova.com/v1alpha1

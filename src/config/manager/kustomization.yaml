@@ -1,3 +1,8 @@
----
 resources:
-  - manager.yaml
+- manager.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: wireguard-operator
+  newName: ghcr.io/cornbuddy/wireguard-operator
+  newTag: v0.19.8-develop.8

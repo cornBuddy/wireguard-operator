@@ -5,13 +5,13 @@ lint:
 
 .PHONY: clean
 clean:
-	@$(MAKE) -C spec clean
 	@$(MAKE) -C src clean
+	@$(MAKE) -C spec clean
 
 .PHONY: vendor
 vendor:
-	@$(MAKE) -C spec vendor
 	@$(MAKE) -C src vendor
+	@$(MAKE) -C spec vendor
 .PHONY: run
 run:
 	@$(MAKE) -C src run
