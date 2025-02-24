@@ -34,12 +34,13 @@ import (
 const (
 	PeerServiceName = "peer"
 
-	wgSampleFile   = "../src/config/samples/wireguard.yaml"
-	peerSampleFile = "../src/config/samples/wireguardpeer.yaml"
+	kubeDnsSample  = "../src/config/samples/kube-dns.yml"
+	sidecarSample  = "../src/config/samples/sidecar.yml"
 	wireguardImage = "linuxserver/wireguard:1.0.20210914"
 )
 
 var (
+	samples      = []string{kubeDnsSample, sidecarSample}
 	wireguardGvr = schema.GroupVersionResource{
 		Group:    "vpn.ahova.com",
 		Version:  "v1alpha1",
@@ -193,7 +194,7 @@ func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 
 func (dsl Dsl) ApplySamples(namespace string) error {
 	// https://gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
-	for _, sample := range []string{wgSampleFile, peerSampleFile} {
+	for _, sample := range samples {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
 		if err != nil {
 			return err
@@ -215,7 +216,7 @@ func (dsl Dsl) ApplySamples(namespace string) error {
 }
 
 func (dsl Dsl) DeleteSamples(namespace string) error {
-	for _, sample := range []string{wgSampleFile, peerSampleFile} {
+	for _, sample := range samples {
 		obj, gvk, err := dsl.readObjectFromFile(sample)
 		if err != nil {
 			return err
