@@ -30,9 +30,6 @@ jobs:
         with:
           semver_only: false
       - uses: actions/setup-go@v3
-        with:
-          go-version: stable
-          check-latest: true
       - run: make deploy
         env:
           TAG: ${{ steps.latest-tag.outputs.tag }}
@@ -57,9 +54,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v3
-        with:
-          go-version: stable
-          check-latest: true
       - uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
