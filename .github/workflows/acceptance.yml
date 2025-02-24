@@ -29,6 +29,10 @@ jobs:
         id: latest-tag
         with:
           semver_only: false
+      - uses: actions/setup-go@v3
+        with:
+          go-version: stable
+          check-latest: true
       - run: make deploy
         env:
           TAG: ${{ steps.latest-tag.outputs.tag }}
