@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: wireguard-operator
-          image: ghcr.io/cornbuddy//wireguard-operator:latest
+          image: ghcr.io/cornbuddy/wireguard-operator:latest
           imagePullPolicy: IfNotPresent
           args:
             - --leader-elect
