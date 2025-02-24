@@ -1,0 +1,12 @@
+---
+
+envoy:
+  enabled: false
+
+hubble:
+  metrics:
+    enabled: ["dns", "drop", "tcp", "flow", "icmp", "http"]
+  relay:
+    enabled: false
+  ui:
+    enabled: false

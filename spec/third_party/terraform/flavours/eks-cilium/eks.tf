@@ -43,17 +43,10 @@ module "eks" {
       for key, value in data.aws_iam_policy.this :
       key => value.arn
     },
-    bootstrap_extra_args    = <<-EOT
+    bootstrap_extra_args = <<-EOT
     [settings.kubernetes]
     "max-pods" = 50
     "allowed-unsafe-sysctls" = ["net.ipv4.*"]
-    EOT
-    pre_bootstrap_user_data = <<-EOT
-      #!/bin/bash
-      set -ex
-      sudo yum install amazon-ssm-agent -y
-      sudo systemctl enable amazon-ssm-agent
-      sudo systemctl start amazon-ssm-agent
     EOT
   }
   eks_managed_node_groups = { "${var.name}" = {} }
