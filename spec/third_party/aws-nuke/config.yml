@@ -13,18 +13,11 @@ resource-types:
     - S3Bucket
     - S3Object
     - Route53HostedZone
+    - IAMUser
+    - IAMUserAccessKey
+    - IAMUserPolicyAttachment
 
 presets:
-  iam:
-    IAMUser:
-      - property: UserName
-        value: github
-    IAMUserPolicyAttachment:
-      - property: UserName
-        value: github
-    IAMUserAccessKey:
-      - property: UserName
-        value: github
   networking:
     filters:
       EC2VPC:
@@ -49,7 +42,6 @@ presets:
 accounts:
   478845996840:
     presets:
-      - iam
       - networking
 
 blocklist:
