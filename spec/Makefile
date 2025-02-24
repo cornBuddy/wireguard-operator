@@ -16,7 +16,7 @@ clean:
 	docker compose --file third_party/aws-nuke/docker-compose.yml up --remove-orphans
 
 .PHONY: smoke
-smoke: clean
+smoke:
 	go test -v ./smoke_test.go
 
 .PHONY: vet
