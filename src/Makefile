@@ -123,10 +123,8 @@ uninstall: manifests kustomize ## Uninstall CRDs
 .PHONY: deploy
 deploy: manifests kustomize install ## Deploy controller
 	cd $(DEPLOY)/manager && $(KUSTOMIZE) edit set image wireguard-operator=${IMG}
-	kubectl create namespace wireguard-operator --dry-run=client -o yaml | kubectl apply -f -
 	$(KUSTOMIZE) build $(DEPLOY)/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller
 	- $(KUSTOMIZE) build $(DEPLOY)/default | kubectl delete --ignore-not-found=false -f -
-	- kubectl delete namespace wireguard-operator

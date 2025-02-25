@@ -7,6 +7,7 @@ import (
 	"maps"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -17,14 +18,10 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/testcontainers/testcontainers-go/modules/compose"
@@ -193,21 +190,11 @@ func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 }
 
 func (dsl Dsl) ApplySamples(namespace string) error {
-	// https://gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
 	for _, sample := range samples {
-		obj, gvk, err := dsl.readObjectFromFile(sample)
-		if err != nil {
-			return err
-		}
-
-		unstrcd, res, err := dsl.objectToUnstructured(obj, gvk)
-		if err != nil {
-			return err
-		}
-
-		opts := metav1.CreateOptions{}
-		dri := dsl.dynamicClient.Resource(*res).Namespace(namespace)
-		if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
+		cmd := exec.Command(
+			"kubectl", "apply", "-f", sample, "-n", namespace,
+		)
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}
@@ -217,20 +204,10 @@ func (dsl Dsl) ApplySamples(namespace string) error {
 
 func (dsl Dsl) DeleteSamples(namespace string) error {
 	for _, sample := range samples {
-		obj, gvk, err := dsl.readObjectFromFile(sample)
-		if err != nil {
-			return err
-		}
-
-		unstrcd, res, err := dsl.objectToUnstructured(obj, gvk)
-		if err != nil {
-			return err
-		}
-
-		opts := metav1.DeleteOptions{}
-		name := unstrcd.GetName()
-		dri := dsl.dynamicClient.Resource(*res).Namespace(namespace)
-		if err := dri.Delete(dsl.ctx, name, opts); err != nil {
+		cmd := exec.Command(
+			"kubectl", "delete", "-f", sample, "-n", namespace,
+		)
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}
@@ -343,60 +320,6 @@ func randomString() string {
 	}
 
 	return string(randomBytes)
-}
-
-func (dsl Dsl) readObjectFromFile(path string) (
-	k8sRuntime.Object, *schema.GroupVersionKind, error) {
-
-	sampleBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var rawObj k8sRuntime.RawExtension
-	reader := bytes.NewReader(sampleBytes)
-	decoder := yamlutil.NewYAMLOrJSONDecoder(reader, 100)
-	if err := decoder.Decode(&rawObj); err != nil {
-		return nil, nil, err
-	}
-
-	scheme := unstructured.UnstructuredJSONScheme
-	srlz := yaml.NewDecodingSerializer(scheme)
-	obj, gvk, err := srlz.Decode(rawObj.Raw, nil, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return obj, gvk, nil
-}
-
-func (dsl Dsl) objectToUnstructured(
-	obj k8sRuntime.Object, gvk *schema.GroupVersionKind) (
-	*unstructured.Unstructured, *schema.GroupVersionResource, error) {
-
-	disc := dsl.apiExtensionsClient.Discovery()
-	gr, err := restmapper.GetAPIGroupResources(disc)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	mapper := restmapper.NewDiscoveryRESTMapper(gr)
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	conventer := k8sRuntime.DefaultUnstructuredConverter
-	objMap, err := conventer.ToUnstructured(obj)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	unstrcd := &unstructured.Unstructured{
-		Object: objMap,
-	}
-
-	return unstrcd, &mapping.Resource, nil
 }
 
 func makeStaticClient() (*kubernetes.Clientset, error) {

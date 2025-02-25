@@ -51,7 +51,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
+		assert.NotContains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "should start without any [Peer]'s")
 
 	t.Log("Creating peer resource")
@@ -65,7 +65,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.Contains(t, string(secret.Data["config"]), "[Peer]")
+		assert.Contains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "[Peer] should pop up once peer is added")
 
 	t.Log("Deleting peer")
@@ -76,7 +76,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
+		assert.NotContains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "[Peer] should begone once peer is removed")
 }
 
@@ -103,7 +103,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 		assert.Nil(t, err, "samples should be deletable")
 	})
 
-	var peerConfig string
+	var peer compose.ComposeStack
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		t.Log("Fetching peer secret")
 		client := dsl.Client.CoreV1().Secrets(namespace)
@@ -114,17 +114,14 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 		data := secret.Data
 		assert.Contains(c, data, "config", "secret should have config")
 
-		peerConfig = string(secret.Data["config"])
+		peerConfig := string(secret.Data["config"])
 		assert.NotEmpty(c, peerConfig, "config should not be empty")
 
 		ep := regexp.MustCompile("Endpoint = .+\\.amazonaws.com:51820")
 		assert.Regexp(c, ep, peerConfig)
-	}, timeout, tick, "should eventually produce a valid secret")
 
-	var peer compose.ComposeStack
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		t.Log("Provisioning docker compose stack for wireguard peer")
-		peer, err = dsl.StartPeerWithConfig(peerConfig)
+		peer, err := dsl.StartPeerWithConfig(peerConfig)
 		assert.Nil(c, err)
 		assert.NotNil(c, peer, "should create stack for peer")
 
@@ -183,7 +180,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 
 			t.Logf("### `%v` output: %s", tc.command, output)
 		}
-	}, timeout, tick, "should eventually setup wireguard peer")
+	}, timeout, tick, "should eventually produce a valid secret")
 
 	t.Cleanup(func() {
 		t.Log("Tearing stack down")

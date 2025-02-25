@@ -1,16 +1,4 @@
 ---
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: wireguard-sidecar
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/instance: wireguard-sidecar
-  podMetricsEndpoints:
-    - port: exporter
-
----
 apiVersion: vpn.ahova.com/v1alpha1
 kind: Wireguard
 metadata:

@@ -10,3 +10,14 @@ resource "helm_release" "cilium" {
     file("${path.module}/files/cilium-base-values.yml"),
   ]
 }
+
+resource "null_resource" "cilium" {
+  triggers = {
+    always = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = "${path.module}/files/delete-vpc-cni.sh"
+  }
+}
+
