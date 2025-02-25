@@ -12,12 +12,13 @@ resource "helm_release" "cilium" {
 }
 
 resource "null_resource" "cilium" {
-  triggers = {
-    always = timestamp()
-  }
-
   provisioner "local-exec" {
     command = "${path.module}/files/delete-vpc-cni.sh"
   }
+
+  triggers = {
+    always = timestamp()
+  }
+  depends_on = [module.export_kubeconfig]
 }
 
