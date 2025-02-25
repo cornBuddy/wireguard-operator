@@ -17,6 +17,10 @@ import (
 	"github.com/cisco-open/k8s-objectmatcher/patch"
 )
 
+const (
+	wireguardRef = ".spec.wireguardRef"
+)
+
 type endpointExtractor func(v1alpha1.Wireguard, corev1.Service) string
 
 func extractClusterIp(_ v1alpha1.Wireguard, svc corev1.Service) string {

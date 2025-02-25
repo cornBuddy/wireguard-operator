@@ -1,10 +1,22 @@
+.PHONY: lint
+lint: tidy fmt vet
+
+.PHONY: vendor
+vendor: update tidy
+
+.PHONY: env
+env:
+	cd third_party/terraform/flavours/$(FLAVOUR)/ \
+		&& terraform init \
+		&& terraform plan \
+		&& terraform apply -auto-approve
+
 .PHONY: clean
 clean:
-	- kubectl delete wireguard --all
-	- kubectl delete wireguardpeer --all
+	docker compose --file third_party/aws-nuke/docker-compose.yml up --remove-orphans
 
 .PHONY: smoke
-smoke: clean
+smoke:
 	go test -v ./smoke_test.go
 
 .PHONY: vet
@@ -12,19 +24,13 @@ vet:
 	go vet ./...
 
 .PHONY: tidy
-tidy: ## Run go mod tidy against code.
+tidy:
 	go mod tidy
 
 .PHONY: fmt
-fmt: ## Run go fmt against code.
+fmt:
 	go fmt ./...
 
-.PHONY: lint
-lint: tidy fmt vet ## Static analisys of the code
-
 .PHONY: update
-update: ## Updates all packates
+update:
 	go get -u ./...
-
-.PHONY: vendor
-vendor: update tidy ## Packages update and `go mod tidy`

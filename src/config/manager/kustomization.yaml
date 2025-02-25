@@ -3,6 +3,6 @@ resources:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
-- name: controller
-  newName: controller
-  newTag: latest
+- name: wireguard-operator
+  newName: ghcr.io/cornbuddy/wireguard-operator
+  newTag: v0.19.12-develop.8

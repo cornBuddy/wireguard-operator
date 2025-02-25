@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 
 	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
 	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
+	myEnvtest "github.com/cornbuddy/wireguard-operator/src/test/envtest"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	cfg       *rest.Config
+	config    *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
 	wgDsl     dsl.Dsl
@@ -34,19 +34,16 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	crdPath := filepath.Join("..", "config", "crd", "bases")
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{crdPath},
-		ErrorIfCRDPathMissing: true,
-	}
-	cfg, err := testEnv.Start()
+	cfg, cleanup, err := myEnvtest.SetupEnvtest()
 	if err != nil {
-		log.Fatalf("failed to start testenv: %v", err)
+		log.Fatalf("failed to setup envtest: %v", err)
 	}
 
+	config = cfg
+
 	defer (func() {
-		if err := testEnv.Stop(); err != nil {
-			log.Fatalf("failed to stop envtest: %v", err)
+		if err := cleanup(); err != nil {
+			log.Fatalf("failed to cleanup envtest: %v", err)
 		}
 	})()
 

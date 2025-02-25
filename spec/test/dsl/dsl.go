@@ -7,6 +7,7 @@ import (
 	"maps"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -17,14 +18,10 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
-	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/testcontainers/testcontainers-go/modules/compose"
@@ -34,28 +31,31 @@ import (
 const (
 	PeerServiceName = "peer"
 
-	wgSampleFile   = "../src/config/samples/wireguard.yaml"
-	peerSampleFile = "../src/config/samples/wireguardpeer.yaml"
+	kubeDnsSample  = "../src/config/samples/kube-dns.yml"
+	sidecarSample  = "../src/config/samples/sidecar.yml"
 	wireguardImage = "linuxserver/wireguard:1.0.20210914"
 )
 
 var (
-	wireguardGvr = schema.GroupVersionResource{
+	WireguardGvr = schema.GroupVersionResource{
 		Group:    "vpn.ahova.com",
 		Version:  "v1alpha1",
 		Resource: "wireguards",
 	}
-	peerGvr = schema.GroupVersionResource{
+	PeerGvr = schema.GroupVersionResource{
 		Group:    "vpn.ahova.com",
 		Version:  "v1alpha1",
 		Resource: "wireguardpeers",
 	}
+
+	samples = []string{kubeDnsSample, sidecarSample}
 )
 
 type Dsl struct {
-	Client              *kubernetes.Clientset
+	Clientset     *kubernetes.Clientset
+	DynamicClient *dynamic.DynamicClient
+
 	apiExtensionsClient *clientset.Clientset
-	dynamicClient       *dynamic.DynamicClient
 	ctx                 context.Context
 	t                   *testing.T
 }
@@ -78,7 +78,7 @@ func (dsl Dsl) CreatePeerWithSpec(namespace string, spec spec) (string, error) {
 	}
 
 	opts := metav1.CreateOptions{}
-	dri := dsl.dynamicClient.Resource(peerGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(PeerGvr).Namespace(namespace)
 	if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
 		return "", err
 	}
@@ -89,7 +89,7 @@ func (dsl Dsl) CreatePeerWithSpec(namespace string, spec spec) (string, error) {
 
 func (dsl Dsl) DeletePeer(name, namespace string) error {
 	opts := metav1.DeleteOptions{}
-	dri := dsl.dynamicClient.Resource(peerGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(PeerGvr).Namespace(namespace)
 	if err := dri.Delete(dsl.ctx, name, opts); err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (dsl Dsl) CreateWireguardWithSpec(namespace string, spec spec) (string, err
 	}
 
 	opts := metav1.CreateOptions{}
-	dri := dsl.dynamicClient.Resource(wireguardGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(WireguardGvr).Namespace(namespace)
 	if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
 		return "", err
 	}
@@ -140,7 +140,7 @@ func (dsl Dsl) CreateWireguardWithSpec(namespace string, spec spec) (string, err
 
 func (dsl Dsl) DeleteWireguard(name, namespace string) error {
 	opts := metav1.DeleteOptions{}
-	dri := dsl.dynamicClient.Resource(wireguardGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(WireguardGvr).Namespace(namespace)
 	if err := dri.Delete(dsl.ctx, name, opts); err != nil {
 		return err
 	}
@@ -192,21 +192,11 @@ func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 }
 
 func (dsl Dsl) ApplySamples(namespace string) error {
-	// https://gist.github.com/pytimer/0ad436972a073bb37b8b6b8b474520fc
-	for _, sample := range []string{wgSampleFile, peerSampleFile} {
-		obj, gvk, err := dsl.readObjectFromFile(sample)
-		if err != nil {
-			return err
-		}
-
-		unstrcd, res, err := dsl.objectToUnstructured(obj, gvk)
-		if err != nil {
-			return err
-		}
-
-		opts := metav1.CreateOptions{}
-		dri := dsl.dynamicClient.Resource(*res).Namespace(namespace)
-		if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
+	for _, sample := range samples {
+		cmd := exec.Command(
+			"kubectl", "apply", "-f", sample, "-n", namespace,
+		)
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}
@@ -215,21 +205,11 @@ func (dsl Dsl) ApplySamples(namespace string) error {
 }
 
 func (dsl Dsl) DeleteSamples(namespace string) error {
-	for _, sample := range []string{wgSampleFile, peerSampleFile} {
-		obj, gvk, err := dsl.readObjectFromFile(sample)
-		if err != nil {
-			return err
-		}
-
-		unstrcd, res, err := dsl.objectToUnstructured(obj, gvk)
-		if err != nil {
-			return err
-		}
-
-		opts := metav1.DeleteOptions{}
-		name := unstrcd.GetName()
-		dri := dsl.dynamicClient.Resource(*res).Namespace(namespace)
-		if err := dri.Delete(dsl.ctx, name, opts); err != nil {
+	for _, sample := range samples {
+		cmd := exec.Command(
+			"kubectl", "delete", "-f", sample, "-n", namespace,
+		)
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}
@@ -254,9 +234,9 @@ func NewDsl(ctx context.Context, t *testing.T) (*Dsl, error) {
 	}
 
 	return &Dsl{
-		Client:              staticClient,
+		Clientset:           staticClient,
 		apiExtensionsClient: apiExtClient,
-		dynamicClient:       dynamicClient,
+		DynamicClient:       dynamicClient,
 		ctx:                 ctx,
 		t:                   t,
 	}, nil
@@ -342,60 +322,6 @@ func randomString() string {
 	}
 
 	return string(randomBytes)
-}
-
-func (dsl Dsl) readObjectFromFile(path string) (
-	k8sRuntime.Object, *schema.GroupVersionKind, error) {
-
-	sampleBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var rawObj k8sRuntime.RawExtension
-	reader := bytes.NewReader(sampleBytes)
-	decoder := yamlutil.NewYAMLOrJSONDecoder(reader, 100)
-	if err := decoder.Decode(&rawObj); err != nil {
-		return nil, nil, err
-	}
-
-	scheme := unstructured.UnstructuredJSONScheme
-	srlz := yaml.NewDecodingSerializer(scheme)
-	obj, gvk, err := srlz.Decode(rawObj.Raw, nil, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return obj, gvk, nil
-}
-
-func (dsl Dsl) objectToUnstructured(
-	obj k8sRuntime.Object, gvk *schema.GroupVersionKind) (
-	*unstructured.Unstructured, *schema.GroupVersionResource, error) {
-
-	disc := dsl.apiExtensionsClient.Discovery()
-	gr, err := restmapper.GetAPIGroupResources(disc)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	mapper := restmapper.NewDiscoveryRESTMapper(gr)
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	conventer := k8sRuntime.DefaultUnstructuredConverter
-	objMap, err := conventer.ToUnstructured(obj)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	unstrcd := &unstructured.Unstructured{
-		Object: objMap,
-	}
-
-	return unstrcd, &mapping.Resource, nil
 }
 
 func makeStaticClient() (*kubernetes.Clientset, error) {

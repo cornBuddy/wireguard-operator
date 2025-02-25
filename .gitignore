@@ -1,11 +1,7 @@
+coverage.out
 
-# Binaries for programs and plugins
 wireguard-operator
 src/bin/*
 
-# Testcoverage
-coverage.out
-
-# moon
-.moon/cache
-.moon/docker
+.terraform/
+*.tfstate*

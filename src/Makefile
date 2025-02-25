@@ -4,17 +4,16 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-
-DEPLOY ?= ./config
-
 CONTROLLER_GEN ?= controller-gen
 KUSTOMIZE ?= kustomize
 
-LOCALBIN ?= "bin"
 BIN_PATH ?= "./wireguard-operator"
-IMG_BASE ?= wireguard-operator
+DEPLOY ?= ./config
+LOCALBIN ?= "./bin"
+
+IMAGE ?= wireguard-operator
 TAG ?= latest
-IMG ?= ${IMG_BASE}:${TAG}
+IMG ?= ${IMAGE}:${TAG}
 
 ##@ General
 
@@ -31,13 +30,8 @@ help: ## Display this help.
 run: manifests generate install fmt vet test ## Run a controller from your host.
 	go run ./main.go
 
-.PHONY: pre-commit
-pre-commit:
-	pre-commit install
-	pre-commit run --verbose --all-files --show-diff-on-failure
-
 .PHONY: clean
-clean: uninstall ## Cleans up development environment
+clean: uninstall undeploy ## Cleans up development environment
 	- docker rmi $(IMG)
 	- rm $(BIN_PATH)
 
@@ -63,7 +57,7 @@ vendor: update tidy ## Packages update and `go mod tidy`
 .PHONY: lint
 lint: tidy fmt vet ## Static analisys of the code
 
-ENVTEST_K8S_VERSION ?= 1.30.0
+ENVTEST_K8S_VERSION ?= 1.31.0
 KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
 .PHONY: test ## Run unit tests
 test: manifests generate envtest ## Run unit tests.
@@ -77,7 +71,7 @@ test: manifests generate envtest ## Run unit tests.
 
 .PHONY: docker
 docker: ## Build docker image
-	docker build --tag ${IMG} .
+	docker buildx bake --push
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
@@ -129,11 +123,8 @@ uninstall: manifests kustomize ## Uninstall CRDs
 .PHONY: deploy
 deploy: manifests kustomize install ## Deploy controller
 	cd $(DEPLOY)/manager && $(KUSTOMIZE) edit set image wireguard-operator=${IMG}
-	kubectl create namespace wireguard-operator --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.66.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 	$(KUSTOMIZE) build $(DEPLOY)/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller
 	- $(KUSTOMIZE) build $(DEPLOY)/default | kubectl delete --ignore-not-found=false -f -
-	- kubectl delete namespace wireguard-operator

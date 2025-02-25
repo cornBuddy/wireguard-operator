@@ -1,5 +1,5 @@
-## Append samples you want in your CSV to this file as resources ##
+---
 resources:
-- wireguard.yaml
-- wireguardpeer.yaml
+- kube-dns.yml
+- sidecar.yml
 #+kubebuilder:scaffold:manifestskustomizesamples

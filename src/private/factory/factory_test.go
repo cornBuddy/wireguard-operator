@@ -24,6 +24,7 @@ var (
 	defaultWireguard = dsl.GenerateWireguard(v1alpha1.WireguardSpec{
 		Address:     "192.168.1.1/24",
 		ServiceType: corev1.ServiceTypeClusterIP,
+		DNS:         "127.0.0.1",
 	}, v1alpha1.WireguardStatus{
 		Endpoint:  toPtr("127.0.0.1:51820"),
 		PublicKey: toPtr("kekeke"),
@@ -59,7 +60,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func shouldHaveProperDecorations(t *testing.T, obj metav1.Object) {
+func shouldHaveProperAnnotations(t *testing.T, obj metav1.Object) {
 	t.Helper()
 
 	annotations := obj.GetAnnotations()

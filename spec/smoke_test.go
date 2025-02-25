@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/poy/onpar"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,16 +43,16 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 	t.Cleanup(func() {
 		t.Log("Deleting wireguard")
 		err := dsl.DeleteWireguard(wgName, namespace)
-		assert.Nil(t, err, "samples should be deletable")
+		assert.Nil(t, err)
 	})
 
-	secretClient := dsl.Client.CoreV1().Secrets(namespace)
+	t.Log("Fetching wireguard secret")
+	secretClient := dsl.Clientset.CoreV1().Secrets(namespace)
 	opts := metav1.GetOptions{}
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
+		assert.NotContains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "should start without any [Peer]'s")
 
 	t.Log("Creating peer resource")
@@ -65,7 +66,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.Contains(t, string(secret.Data["config"]), "[Peer]")
+		assert.Contains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "[Peer] should pop up once peer is added")
 
 	t.Log("Deleting peer")
@@ -76,7 +77,7 @@ func TestWirguardSecretIsUpdatedWhenPeerListChanges(t *testing.T) {
 		t.Log("Fetching wireguard secret")
 		secret, err := secretClient.Get(ctx, wgName, opts)
 		assert.Nil(c, err, "should find secret")
-		assert.NotContains(t, string(secret.Data["config"]), "[Peer]")
+		assert.NotContains(c, string(secret.Data["config"]), "[Peer]")
 	}, timeout, tick, "[Peer] should begone once peer is removed")
 }
 
@@ -85,7 +86,6 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {
-		t.Log("Cancelling peer context")
 		cancel()
 	})
 
@@ -103,86 +103,106 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 		assert.Nil(t, err, "samples should be deletable")
 	})
 
-	var peerConfig string
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Log("Fetching peer secret")
-		client := dsl.Client.CoreV1().Secrets(namespace)
-		opts := metav1.GetOptions{}
-		secret, err := client.Get(ctx, "peer-sample", opts)
-		assert.Nil(c, err, "should find secret")
+	o := onpar.New(t)
+	defer o.Run()
 
-		data := secret.Data
-		assert.Contains(c, data, "config", "secret should have config")
+	type testCase struct {
+		peer string
+	}
 
-		peerConfig = string(secret.Data["config"])
-		assert.NotEmpty(c, peerConfig, "config should not be empty")
+	spec := onpar.TableSpec(o, func(t *testing.T, tc testCase) {
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			t.Log("Fetching peer secret")
+			client := dsl.Clientset.CoreV1().Secrets(namespace)
+			opts := metav1.GetOptions{}
+			secret, err := client.Get(ctx, tc.peer, opts)
+			assert.Nil(c, err, "should find secret")
 
-		endpointRegex := regexp.
-			MustCompile("Endpoint = .+\\.amazonaws.com:51820")
-		assert.Regexp(c, endpointRegex, peerConfig)
-	}, timeout, tick, "should eventually produce a valid secret")
+			data := secret.Data
+			assert.Contains(c, data, "config", "secret should have config")
 
-	var peer compose.ComposeStack
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Log("Provisioning docker compose stack for wireguard peer")
-		peer, err = dsl.StartPeerWithConfig(peerConfig)
-		assert.Nil(c, err)
-		assert.NotNil(c, peer, "should create stack for peer")
+			peerConfig := string(secret.Data["config"])
+			assert.NotEmpty(c, peerConfig, "config should not be empty")
 
-		// it's expected for peer to be nil when StartPeerWithConfig is
-		// failed, so returning early to avoid panic
-		if peer == nil {
-			return
-		}
+			ep := regexp.MustCompile("Endpoint = .+\\.amazonaws.com:51820")
+			assert.Regexp(c, ep, peerConfig)
 
-		t.Log("Fetching peer container")
-		container, err := peer.ServiceContainer(ctx, testdsl.PeerServiceName)
-		assert.Nil(c, err)
-		assert.NotEmpty(c, container, "should start peer container")
-
-		type validateCommandOutputTestCase struct {
-			message  string
-			command  []string
-			contains string
-		}
-
-		tcs := []validateCommandOutputTestCase{{
-			message:  "Checking internet connectivity",
-			command:  []string{"curl", "-Ss", "https://google.com"},
-			contains: "301 Moved",
-		}, {
-			message:  "Executing `wg` command inside peer container",
-			command:  []string{"wg"},
-			contains: "KiB",
-		}}
-
-		for _, tc := range tcs {
-			t.Logf("%s: executing `%v`", tc.message, tc.command)
-			code, reader, err := container.Exec(ctx, tc.command)
+			t.Log("Provisioning docker compose stack for wireguard peer")
+			peer, err := dsl.StartPeerWithConfig(peerConfig)
 			assert.Nil(c, err)
-			assert.Equal(c, 0, code, "check should succeed")
-			assert.NotEmpty(c, reader, "output should not be empty")
+			assert.NotNil(c, peer, "should create stack for peer")
 
-			if reader == nil {
+			// it's expected for peer to be nil when StartPeerWithConfig is
+			// failed, so returning early to avoid panic
+			if peer == nil {
 				return
 			}
 
-			t.Logf("validating output of `%v`", tc.command)
-			bytes, err := io.ReadAll(reader)
-			output := string(bytes)
+			t.Log("Fetching peer container")
+			container, err := peer.ServiceContainer(ctx, testdsl.PeerServiceName)
 			assert.Nil(c, err)
-			assert.NotEmpty(c, output)
-			assert.Contains(c, output, tc.contains)
+			assert.NotEmpty(c, container, "should start peer container")
 
-			t.Logf("### `%v` output: %s", tc.command, output)
-		}
-	}, timeout, tick, "should eventually setup wireguard peer")
+			type validateCommandOutputTestCase struct {
+				message  string
+				command  []string
+				contains string
+			}
 
-	t.Cleanup(func() {
-		t.Log("Tearing stack down")
-		err := peer.Down(ctx, compose.RemoveOrphans(true))
-		assert.Nil(t, err, "should stop peer")
+			tcs := []validateCommandOutputTestCase{{
+				message:  "Checking DNS connectivity",
+				command:  []string{"nslookup", "google.com"},
+				contains: "Name:\tgoogle.com",
+			}, {
+				message:  "Checking ICMP connectivity",
+				command:  []string{"ping", "-c", "4", "8.8.8.8"},
+				contains: "4 packets transmitted, 4 received",
+			}, {
+				message:  "Checking internet connectivity",
+				command:  []string{"curl", "-v", "google.com"},
+				contains: "301 Moved",
+			}, {
+				message:  "Checking wireguard data transfer",
+				command:  []string{"wg"},
+				contains: "KiB",
+			}}
+
+			for _, tc := range tcs {
+				t.Logf("%s: executing `%v`", tc.message, tc.command)
+				code, reader, err := container.Exec(ctx, tc.command)
+				assert.Nil(c, err)
+				assert.Equal(c, 0, code, "check should succeed")
+				assert.NotEmpty(c, reader, "output should not be empty")
+
+				if reader == nil {
+					return
+				}
+
+				t.Logf("validating output of `%v`", tc.command)
+				bytes, err := io.ReadAll(reader)
+				output := string(bytes)
+				assert.Nil(c, err)
+				assert.NotEmpty(c, output)
+				assert.Contains(c, output, tc.contains)
+
+				t.Logf("### `%v` output: %s", tc.command, output)
+			}
+
+			t.Log("Tearing stack down")
+			err = peer.Down(ctx, compose.RemoveOrphans(true))
+			assert.Nil(t, err, "should stop peer")
+		}, timeout, tick, "should eventually produce a valid secret")
 	})
+
+	dri := dsl.DynamicClient.Resource(testdsl.PeerGvr).Namespace(namespace)
+	opts := metav1.ListOptions{}
+	peersList, err := dri.List(ctx, opts)
+	assert.Nil(t, err, "should find some peers")
+
+	for _, peer := range peersList.Items {
+		tc := testCase{peer: peer.GetName()}
+		spec.Entry(peer.GetName(), tc)
+	}
 }
 
 func TestCRDsShouldBeInstalled(t *testing.T) {
