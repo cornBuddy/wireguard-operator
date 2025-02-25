@@ -37,23 +37,25 @@ const (
 )
 
 var (
-	samples      = []string{kubeDnsSample, sidecarSample}
-	wireguardGvr = schema.GroupVersionResource{
+	WireguardGvr = schema.GroupVersionResource{
 		Group:    "vpn.ahova.com",
 		Version:  "v1alpha1",
 		Resource: "wireguards",
 	}
-	peerGvr = schema.GroupVersionResource{
+	PeerGvr = schema.GroupVersionResource{
 		Group:    "vpn.ahova.com",
 		Version:  "v1alpha1",
 		Resource: "wireguardpeers",
 	}
+
+	samples = []string{kubeDnsSample, sidecarSample}
 )
 
 type Dsl struct {
-	Client              *kubernetes.Clientset
+	Clientset     *kubernetes.Clientset
+	DynamicClient *dynamic.DynamicClient
+
 	apiExtensionsClient *clientset.Clientset
-	dynamicClient       *dynamic.DynamicClient
 	ctx                 context.Context
 	t                   *testing.T
 }
@@ -76,7 +78,7 @@ func (dsl Dsl) CreatePeerWithSpec(namespace string, spec spec) (string, error) {
 	}
 
 	opts := metav1.CreateOptions{}
-	dri := dsl.dynamicClient.Resource(peerGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(PeerGvr).Namespace(namespace)
 	if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
 		return "", err
 	}
@@ -87,7 +89,7 @@ func (dsl Dsl) CreatePeerWithSpec(namespace string, spec spec) (string, error) {
 
 func (dsl Dsl) DeletePeer(name, namespace string) error {
 	opts := metav1.DeleteOptions{}
-	dri := dsl.dynamicClient.Resource(peerGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(PeerGvr).Namespace(namespace)
 	if err := dri.Delete(dsl.ctx, name, opts); err != nil {
 		return err
 	}
@@ -128,7 +130,7 @@ func (dsl Dsl) CreateWireguardWithSpec(namespace string, spec spec) (string, err
 	}
 
 	opts := metav1.CreateOptions{}
-	dri := dsl.dynamicClient.Resource(wireguardGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(WireguardGvr).Namespace(namespace)
 	if _, err := dri.Create(dsl.ctx, unstrcd, opts); err != nil {
 		return "", err
 	}
@@ -138,7 +140,7 @@ func (dsl Dsl) CreateWireguardWithSpec(namespace string, spec spec) (string, err
 
 func (dsl Dsl) DeleteWireguard(name, namespace string) error {
 	opts := metav1.DeleteOptions{}
-	dri := dsl.dynamicClient.Resource(wireguardGvr).Namespace(namespace)
+	dri := dsl.DynamicClient.Resource(WireguardGvr).Namespace(namespace)
 	if err := dri.Delete(dsl.ctx, name, opts); err != nil {
 		return err
 	}
@@ -232,9 +234,9 @@ func NewDsl(ctx context.Context, t *testing.T) (*Dsl, error) {
 	}
 
 	return &Dsl{
-		Client:              staticClient,
+		Clientset:           staticClient,
 		apiExtensionsClient: apiExtClient,
-		dynamicClient:       dynamicClient,
+		DynamicClient:       dynamicClient,
 		ctx:                 ctx,
 		t:                   t,
 	}, nil
