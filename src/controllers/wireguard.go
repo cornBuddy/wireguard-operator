@@ -165,6 +165,11 @@ func (r *WireguardReconciler) Reconcile(
 	}
 	log.Info("Deployment is up to date")
 
+	// FIXME: when this reconcilation loop is triggered by peer,
+	// req.NamespacedName contains name of the peer, which is expected
+	// but in this case value of the variable should contain name of the
+	// wireguard resource
+
 	// Status
 	if err := r.Get(ctx, req.NamespacedName, service); err != nil {
 		log.Error(err, "Cannot read service from the cluster")
