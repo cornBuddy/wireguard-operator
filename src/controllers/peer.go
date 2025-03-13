@@ -45,7 +45,7 @@ func (r *WireguardPeerReconciler) Reconcile(
 		log.Error(err, "Failed to get wireguard peer")
 		return ctrl.Result{}, err
 	} else if apierrors.IsNotFound(err) {
-		log.Info("wireguardpeer resource not found. Ignoring since object must be deleted")
+		log.Info("must have been deleted, reconcilation is finished")
 		return ctrl.Result{}, nil
 	}
 	log.Info("Successfully read peer from cluster, moving on...")
