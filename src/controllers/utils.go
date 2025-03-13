@@ -23,14 +23,6 @@ const (
 
 type endpointExtractor func(v1alpha1.Wireguard, corev1.Service) string
 
-func extractClusterIp(_ v1alpha1.Wireguard, svc corev1.Service) string {
-	return svc.Spec.ClusterIP
-}
-
-func extractWireguardEndpoint(wg v1alpha1.Wireguard, _ corev1.Service) string {
-	return *wg.Spec.EndpointAddress
-}
-
 type reconciler interface {
 	client.Reader
 	client.Writer

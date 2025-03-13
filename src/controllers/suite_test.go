@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,4 +76,12 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
+}
+
+func extractClusterIp(_ v1alpha1.Wireguard, svc corev1.Service) string {
+	return svc.Spec.ClusterIP
+}
+
+func extractWireguardEndpoint(wg v1alpha1.Wireguard, _ corev1.Service) string {
+	return *wg.Spec.EndpointAddress
 }

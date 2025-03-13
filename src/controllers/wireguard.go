@@ -47,7 +47,7 @@ func (r *WireguardReconciler) Reconcile(
 	log := log.FromContext(ctx).WithName("wireguard")
 
 	// Wireguard
-	wireguard, err := r.getWireguard(ctx, req.NamespacedName)
+	wireguard, err := r.getWireguard(ctx, &req.NamespacedName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		log.Error(err, "Failed to get wireguard")
 		return ctrl.Result{}, err
@@ -215,11 +215,11 @@ func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *WireguardReconciler) getWireguard(
-	ctx context.Context, key types.NamespacedName) (
+	ctx context.Context, key *types.NamespacedName) (
 	*v1alpha1.Wireguard, error) {
 
 	wireguard := &v1alpha1.Wireguard{}
-	err := r.Get(ctx, key, wireguard)
+	err := r.Get(ctx, *key, wireguard)
 	if err != nil && !apierrors.IsNotFound(err) {
 		// unexpected error
 		return nil, err
@@ -232,14 +232,14 @@ func (r *WireguardReconciler) getWireguard(
 	// by peer (see SetupWithManager), or wireguard resource was
 	// deleted. checking if it was triggered by peer
 	peer := &v1alpha1.WireguardPeer{}
-	err = r.Get(ctx, key, peer)
+	err = r.Get(ctx, *key, peer)
 	if err != nil {
 		return nil, err
 	}
 
 	// peer was found, but we still need to fetch wireguard resource
 	key.Name = peer.Spec.WireguardRef
-	err = r.Get(ctx, key, wireguard)
+	err = r.Get(ctx, *key, wireguard)
 	if err != nil {
 		return nil, err
 	}

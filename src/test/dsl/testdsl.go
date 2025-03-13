@@ -67,7 +67,7 @@ func (dsl Dsl) Reconcile(object client.Object) error {
 	return nil
 }
 
-// Creates and reconciles given object object
+// Creates and reconciles given object
 func (dsl Dsl) Apply(ctx context.Context, object client.Object) error {
 	if err := dsl.K8sClient.Create(ctx, object); err != nil {
 		return err

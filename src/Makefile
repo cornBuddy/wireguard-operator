@@ -27,8 +27,8 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: run
-run: manifests generate install fmt vet test ## Run a controller from your host.
-	go run ./main.go
+run: fmt vet install ## Run a controller from your host.
+	POD_NAMESPACE=default go run ./main.go
 
 .PHONY: clean
 clean: uninstall undeploy ## Cleans up development environment
@@ -108,7 +108,7 @@ envtest: ## Installs envtest-setup locally if necessary.
 ##@ Deployment
 
 .PHONY: install
-install: manifests kustomize ## Install CRDs
+install: generate manifests kustomize ## Install CRDs
 	$(KUSTOMIZE) build $(DEPLOY)/crd | kubectl apply -f -
 
 .PHONY: samples

@@ -5,7 +5,7 @@ lint: tidy fmt vet
 vendor: update tidy
 
 .PHONY: env
-env:
+env: clean
 	cd third_party/terraform/flavours/$(FLAVOUR)/ \
 		&& terraform init \
 		&& terraform plan \
@@ -13,6 +13,12 @@ env:
 
 .PHONY: clean
 clean:
+	find . -type f -name "terraform.tfstate" -exec rm -rf {} +
+	find . -type f -name ".terraform.lock.hcl" -exec rm -rf {} +
+	find . -type d -name ".terraform" -exec rm -rf {} +
+
+.PHONY: nuke
+nuke:
 	docker compose --file third_party/aws-nuke/docker-compose.yml up --remove-orphans
 
 .PHONY: smoke

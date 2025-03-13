@@ -6,7 +6,7 @@ lint:
 .PHONY: clean
 clean:
 	@$(MAKE) -C src clean
-	@$(MAKE) -C spec clean
+	@$(MAKE) -C spec clean nuke
 
 .PHONY: vendor
 vendor:
