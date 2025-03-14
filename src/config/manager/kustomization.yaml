@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: wireguard-operator
   newName: ghcr.io/cornbuddy/wireguard-operator
-  newTag: test2
+  newTag: v0.19.16-develop.0

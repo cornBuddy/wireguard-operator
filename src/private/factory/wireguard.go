@@ -83,7 +83,7 @@ func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 	}
 
 	if address == "" {
-		return nil, fmt.Errorf("cannot extract endpoint from service")
+		return nil, ErrPublicIpNotYetSet
 	}
 
 	result := fmt.Sprintf("%s:%d", address, wireguardPort)
@@ -93,7 +93,7 @@ func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 // Returns empty string when public address of LB is not set
 func (fact Wireguard) extractEndpointFromLoadBalancer(svc corev1.Service) string {
 	if len(svc.Status.LoadBalancer.Ingress) == 0 {
-		return svc.Spec.ClusterIP
+		return ""
 	}
 
 	ingress := svc.Status.LoadBalancer.Ingress[0]
