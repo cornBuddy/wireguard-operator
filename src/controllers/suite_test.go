@@ -85,3 +85,11 @@ func extractClusterIp(_ v1alpha1.Wireguard, svc corev1.Service) string {
 func extractWireguardEndpoint(wg v1alpha1.Wireguard, _ corev1.Service) string {
 	return *wg.Spec.EndpointAddress
 }
+
+func extractFromStatus(wg v1alpha1.Wireguard, _ corev1.Service) string {
+	if wg.Status.Endpoint == nil {
+		return "wtf????"
+	}
+
+	return *wg.Status.Endpoint
+}

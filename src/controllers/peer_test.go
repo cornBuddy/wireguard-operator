@@ -127,7 +127,7 @@ func TestPeerEndpoint(t *testing.T) {
 		description   string
 		wireguard     v1alpha1.Wireguard
 		wireguardPeer v1alpha1.WireguardPeer
-		// function which can extract proper endpoitn from given service
+		// function which can extract proper endpoint from given service
 		extractEndpoint endpointExtractor
 	}
 
@@ -143,18 +143,20 @@ func TestPeerEndpoint(t *testing.T) {
 		),
 		extractEndpoint: extractClusterIp,
 	}, {
-		description: "public ip not yet set",
+		description: "endpoint is set in status",
 		wireguard: dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{
 				ServiceType: corev1.ServiceTypeLoadBalancer,
 			},
-			v1alpha1.WireguardStatus{},
+			v1alpha1.WireguardStatus{
+				Endpoint: toPtr("localhost"),
+			},
 		),
 		wireguardPeer: dsl.GeneratePeer(
 			v1alpha1.WireguardPeerSpec{},
 			v1alpha1.WireguardPeerStatus{},
 		),
-		extractEndpoint: extractClusterIp,
+		extractEndpoint: extractFromStatus,
 	}, {
 		description: "wireguard endpoint is set",
 		wireguard: dsl.GenerateWireguard(
