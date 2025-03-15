@@ -123,6 +123,32 @@ func TestPeerStatus(t *testing.T) {
 func TestPeerEndpoint(t *testing.T) {
 	t.Parallel()
 
+	o := onpar.New(t)
+	defer o.Run()
+
+	o.Spec("should fail when service type is LB and endpoint is not set in status", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{ServiceType: corev1.ServiceTypeLoadBalancer},
+			v1alpha1.WireguardStatus{},
+		)
+		err := wgDsl.Apply(ctx, &wg)
+		assert.Nil(t, err)
+
+		peer := dsl.GeneratePeer(
+			v1alpha1.WireguardPeerSpec{WireguardRef: wg.GetName()},
+			v1alpha1.WireguardPeerStatus{},
+		)
+		err = wgDsl.Apply(ctx, &peer)
+		assert.Nil(t, err)
+
+		key := types.NamespacedName{
+			Name:      peer.GetName(),
+			Namespace: peer.GetNamespace(),
+		}
+		err = k8sClient.Get(ctx, key, &peer)
+		assert.NotNil(t, err)
+	})
+
 	type testCase struct {
 		description   string
 		wireguard     v1alpha1.Wireguard
@@ -163,7 +189,9 @@ func TestPeerEndpoint(t *testing.T) {
 			v1alpha1.WireguardSpec{
 				EndpointAddress: toPtr("localhost"),
 			},
-			v1alpha1.WireguardStatus{},
+			v1alpha1.WireguardStatus{
+				Endpoint: toPtr("localhost"),
+			},
 		),
 		wireguardPeer: dsl.GeneratePeer(
 			v1alpha1.WireguardPeerSpec{},
@@ -171,9 +199,6 @@ func TestPeerEndpoint(t *testing.T) {
 		),
 		extractEndpoint: extractWireguardEndpoint,
 	}}
-
-	o := onpar.New(t)
-	defer o.Run()
 
 	spec := onpar.TableSpec(o, func(t *testing.T, test testCase) {
 		// as those resources are anonymous at definition, it's required

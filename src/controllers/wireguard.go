@@ -173,12 +173,12 @@ func (r *WireguardReconciler) Reconcile(
 	log.Info("Successfully read service from cluster")
 
 	ep, err := fact.ExtractEndpoint(*service)
-	if err == factory.ErrPublicIpNotYetSet {
+	if err == factory.ErrEndpointNotSet {
 		log.Info("Public ip not yet set, somehow expected")
-		return ctrl.Result{}, nil
+		return requeue, nil
 	} else if err != nil {
 		log.Error(err, "Cannot extract endpoint from service")
-		return requeue, err
+		return ctrl.Result{}, err
 	}
 
 	if err := r.Get(ctx, key, wireguard); err != nil {

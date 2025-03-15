@@ -48,7 +48,7 @@ func GeneratePeer(spec v1alpha1.WireguardPeerSpec, status v1alpha1.WireguardPeer
 	}
 }
 
-func (dsl Dsl) Reconcile(object client.Object) error {
+func (dsl Dsl) Reconcile(ctx context.Context, object client.Object) error {
 	// Reconcile resource multiple times to ensure that all resources are
 	// created
 	const reconcilationLoops = 10
@@ -57,7 +57,6 @@ func (dsl Dsl) Reconcile(object client.Object) error {
 		Namespace: object.GetNamespace(),
 	}
 	req := reconcile.Request{NamespacedName: key}
-	ctx := context.TODO()
 	for i := 0; i < reconcilationLoops; i++ {
 		if _, err := dsl.Reconciler.Reconcile(ctx, req); err != nil {
 			return err
@@ -73,7 +72,7 @@ func (dsl Dsl) Apply(ctx context.Context, object client.Object) error {
 		return err
 	}
 
-	if err := dsl.Reconcile(object); err != nil {
+	if err := dsl.Reconcile(ctx, object); err != nil {
 		return err
 	}
 

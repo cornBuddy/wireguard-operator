@@ -43,7 +43,7 @@ sleep infinity`
 )
 
 var (
-	ErrPublicIpNotYetSet = fmt.Errorf("public ip not yet set")
+	ErrEndpointNotSet = fmt.Errorf("public ip not yet set")
 
 	annotator = patch.NewAnnotator(lastAppliedAnnotation)
 )
@@ -83,7 +83,7 @@ func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 	}
 
 	if address == "" {
-		return nil, ErrPublicIpNotYetSet
+		return nil, ErrEndpointNotSet
 	}
 
 	result := fmt.Sprintf("%s:%d", address, wireguardPort)

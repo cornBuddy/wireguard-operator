@@ -76,7 +76,7 @@ func TestWireguardSecret(t *testing.T) {
 		err := peerDsl.Apply(ctx, &peer)
 		assert.Nil(t, err, "apply peer into cluster")
 
-		err = wgDsl.Reconcile(wg)
+		err = wgDsl.Reconcile(ctx, wg)
 		assert.Nil(t, err, "fetch new peer from cluster")
 
 		secret := &corev1.Secret{}
@@ -132,7 +132,7 @@ func TestWireguardSecret(t *testing.T) {
 		wg := tc.wireguard
 
 		// simulate reconcilation loop
-		err := wgDsl.Reconcile(wg)
+		err := wgDsl.Reconcile(ctx, wg)
 		assert.Nil(t, err)
 
 		gotSecret := &corev1.Secret{}
@@ -245,7 +245,7 @@ func TestWireguardService(t *testing.T) {
 		err = k8sClient.Update(ctx, &wg)
 		assert.Nil(t, err)
 
-		err = wgDsl.Reconcile(&wg)
+		err = wgDsl.Reconcile(ctx, &wg)
 		assert.Nil(t, err)
 
 		svc2 := &corev1.Service{}
