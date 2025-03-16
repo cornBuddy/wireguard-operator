@@ -209,6 +209,14 @@ func TestPeerEndpoint(t *testing.T) {
 		err := wgDsl.Apply(ctx, &test.wireguard)
 		assert.Nil(t, err)
 
+		wgKey := types.NamespacedName{
+			Name:      test.wireguard.GetName(),
+			Namespace: test.wireguard.GetNamespace(),
+		}
+		err = k8sClient.Get(ctx, wgKey, &test.wireguard)
+		assert.Nil(t, err)
+		fmt.Printf("endpoint: %v\n", test.wireguard.Status.Endpoint)
+
 		err = peerDsl.Apply(ctx, &test.wireguardPeer)
 		assert.Nil(t, err)
 
@@ -223,10 +231,6 @@ func TestPeerEndpoint(t *testing.T) {
 		assert.NotEmpty(t, secret.Data["config"])
 
 		wgSvc := &corev1.Service{}
-		wgKey := types.NamespacedName{
-			Name:      test.wireguard.GetName(),
-			Namespace: test.wireguard.GetNamespace(),
-		}
 		err = k8sClient.Get(ctx, wgKey, wgSvc)
 		assert.Nil(t, err)
 

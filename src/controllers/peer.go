@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"k8s.io/api/core/v1"
@@ -70,7 +69,6 @@ func (r *WireguardPeerReconciler) Reconcile(
 		log.Info("Corresponding wireguard is not yet reconciled",
 			"WireguardRef", peer.Spec.WireguardRef,
 			"Wireguard.Status", wireguard.Status)
-		fmt.Printf("### %v\n", wireguard.Status)
 		return requeue, nil
 	}
 

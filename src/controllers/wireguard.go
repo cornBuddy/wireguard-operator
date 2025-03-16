@@ -144,7 +144,7 @@ func (r *WireguardReconciler) Reconcile(
 		return ctrl.Result{}, err
 	} else if applied {
 		log.Info("Secret applied successfully")
-		return ctrl.Result{}, nil
+		return requeue, nil
 	}
 	log.Info("Secret is up to date")
 
