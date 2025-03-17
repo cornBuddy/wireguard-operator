@@ -119,36 +119,44 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 		},
 	}
 
-	wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
-	gotEp, err := defaultWgFact.ExtractEndpoint(clusterIpSvc)
-	assert.Nil(t, err)
-	assert.Equal(t, wantEp, *gotEp, "should return cluster ip by default")
+	o := onpar.New(t)
+	defer o.Run()
 
-	wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-		ServiceType: corev1.ServiceTypeNodePort,
-	}, v1alpha1.WireguardStatus{})
-	fact := Wireguard{
-		Scheme:    scheme,
-		Wireguard: wg,
-		Peers:     v1alpha1.WireguardPeerList{},
-	}
-	_, err = fact.ExtractEndpoint(clusterIpSvc)
-	assert.Error(t, err,
-		"should return error when service type is NodePort")
+	o.Spec("should return cluster ip by default", func(t *testing.T) {
+		wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
+		gotEp, err := defaultWgFact.ExtractEndpoint(clusterIpSvc)
+		assert.Nil(t, err)
+		assert.Equal(t, wantEp, *gotEp)
+	})
 
-	wg = dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-		ServiceType: corev1.ServiceTypeLoadBalancer,
-	}, v1alpha1.WireguardStatus{})
-	fact = Wireguard{
-		Scheme:    scheme,
-		Wireguard: wg,
-		Peers:     v1alpha1.WireguardPeerList{},
-	}
-	wantEp = fmt.Sprintf("%s:%d", hostname, wireguardPort)
-	gotEp, err = fact.ExtractEndpoint(loadBalancerSvc)
-	assert.Nil(t, err)
-	assert.Equal(t, wantEp, *gotEp,
-		"should return hostname when serviceType == LoadBalancer")
+	o.Spec("should return error when service type is NodePort", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: corev1.ServiceTypeNodePort,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		_, err := fact.ExtractEndpoint(clusterIpSvc)
+		assert.Equal(t, ErrUnsupportedServiceType, err)
+	})
+
+	o.Spec("should return hostname when serviceType == LoadBalancer", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: corev1.ServiceTypeLoadBalancer,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		wantEp := fmt.Sprintf("%s:%d", hostname, wireguardPort)
+		gotEp, err := fact.ExtractEndpoint(loadBalancerSvc)
+		assert.Nil(t, err)
+		assert.Equal(t, wantEp, *gotEp)
+	})
+
 }
 
 func TestWireguardConfigMap(t *testing.T) {

@@ -43,7 +43,8 @@ sleep infinity`
 )
 
 var (
-	ErrEndpointNotSet = fmt.Errorf("public ip not yet set")
+	ErrEndpointNotSet         = fmt.Errorf("public ip not yet set")
+	ErrUnsupportedServiceType = fmt.Errorf("unsupported service type")
 
 	annotator = patch.NewAnnotator(lastAppliedAnnotation)
 )
@@ -71,15 +72,15 @@ func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 		return toPtr(fmt.Sprintf("%s:%d", ep, wireguardPort)), nil
 	}
 
-	serviceType := fact.Wireguard.Spec.ServiceType
 	address := ""
+	serviceType := fact.Wireguard.Spec.ServiceType
 	switch serviceType {
 	case corev1.ServiceTypeClusterIP:
 		address = svc.Spec.ClusterIP
 	case corev1.ServiceTypeLoadBalancer:
 		address = fact.extractEndpointFromLoadBalancer(svc)
 	default:
-		return nil, fmt.Errorf("unsupported service type")
+		return nil, ErrUnsupportedServiceType
 	}
 
 	if address == "" {
