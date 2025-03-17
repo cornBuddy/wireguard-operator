@@ -122,6 +122,30 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 	o := onpar.New(t)
 	defer o.Run()
 
+	o.Spec("should fail when public ip is not set", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
+			ServiceType: corev1.ServiceTypeLoadBalancer,
+		}, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+		svc := corev1.Service{
+			Spec: corev1.ServiceSpec{
+				ClusterIP: clusterIp,
+			},
+			Status: corev1.ServiceStatus{
+				LoadBalancer: corev1.LoadBalancerStatus{
+					Ingress: []corev1.LoadBalancerIngress{},
+				},
+			},
+		}
+		_, err := fact.ExtractEndpoint(svc)
+		assert.Equal(t, ErrEndpointNotSet, err)
+
+	})
+
 	o.Spec("should return cluster ip by default", func(t *testing.T) {
 		wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
 		gotEp, err := defaultWgFact.ExtractEndpoint(clusterIpSvc)
@@ -156,7 +180,6 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, wantEp, *gotEp)
 	})
-
 }
 
 func TestWireguardConfigMap(t *testing.T) {
