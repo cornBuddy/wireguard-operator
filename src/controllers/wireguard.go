@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	// "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
@@ -27,21 +26,6 @@ type WireguardReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-}
-
-type testLogger struct{}
-
-func (l testLogger) Error(err error, msg string) {
-	fmt.Printf("Error: `%v`, Message: `%v`\n", err, msg)
-}
-
-func (l testLogger) Info(msg string, args ...any) {
-	fmt.Printf("Message: `%v`, Args: `%v`\n", msg, args)
-}
-
-type logger interface {
-	Error(error, string)
-	Info(string, ...any)
 }
 
 //+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards,verbs=get;list;watch;create;update;patch;delete
@@ -60,17 +44,18 @@ func (r *WireguardReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (
 	ctrl.Result, error) {
 
-	// log := log.FromContext(ctx).WithName("wireguard")
-	log := testLogger{}
+	empty := ctrl.Result{}
+	requeue := ctrl.Result{Requeue: true}
+	log := log.FromContext(ctx).WithName("wireguard")
 
 	// Wireguard
 	wireguard, err := r.getWireguard(ctx, req.NamespacedName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		log.Error(err, "Failed to get wireguard")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if apierrors.IsNotFound(err) {
-		log.Info("must have been deleted, reconcilation is finished")
-		return ctrl.Result{}, nil
+		log.Info("Must have been deleted, reconcilation is finished")
+		return empty, nil
 	}
 	log.Info("Successfully read wireguard from cluster")
 
@@ -78,11 +63,10 @@ func (r *WireguardReconciler) Reconcile(
 	peers, err := r.getPeers(ctx, wireguard)
 	if err != nil {
 		log.Error(err, "Cannot list related peers")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 	log.Info("Peers list is fetched", "peers", peers.Items)
 
-	requeue := ctrl.Result{Requeue: true}
 	fact := factory.Wireguard{
 		Scheme:    r.Scheme,
 		Wireguard: *wireguard,
@@ -93,12 +77,12 @@ func (r *WireguardReconciler) Reconcile(
 	service, err := fact.Service()
 	if err != nil {
 		log.Error(err, "Cannot generate service")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if applied, err := apply(ctx, r, service); err != nil {
 		log.Error(err, "Cannot apply service")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if applied {
 		log.Info("Service applied successfully")
 		return requeue, nil
@@ -109,12 +93,12 @@ func (r *WireguardReconciler) Reconcile(
 	cm, err := fact.ConfigMap()
 	if err != nil {
 		log.Error(err, "Cannot generate configmap")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if applied, err := apply(ctx, r, cm); err != nil {
 		log.Error(err, "Cannot apply configmap")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if applied {
 		log.Info("Configmap applied successfully")
 		return requeue, nil
@@ -134,7 +118,7 @@ func (r *WireguardReconciler) Reconcile(
 		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
 			log.Error(err, "Cannot generate keypair")
-			return ctrl.Result{}, err
+			return empty, err
 		}
 
 		privateKey = key.String()
@@ -142,7 +126,7 @@ func (r *WireguardReconciler) Reconcile(
 	} else if err != nil {
 		// unexpected error
 		log.Error(err, "Cannot fetch corresponding secret from cluster")
-		return ctrl.Result{}, err
+		return empty, err
 	} else {
 		// secret exists, so let's read keys from it
 		privateKey = string(currentSecret.Data["private-key"])
@@ -153,12 +137,12 @@ func (r *WireguardReconciler) Reconcile(
 	desiredSecret, err := fact.Secret(publicKey, privateKey)
 	if err != nil {
 		log.Error(err, "Cannot generate secret")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if applied, err := apply(ctx, r, desiredSecret); err != nil {
 		log.Error(err, "Cannot apply secret")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if applied {
 		log.Info("Secret applied successfully")
 		return requeue, nil
@@ -170,12 +154,12 @@ func (r *WireguardReconciler) Reconcile(
 	deploy, err := fact.Deployment(configHash)
 	if err != nil {
 		log.Error(err, "Cannot generate deployment")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if applied, err := apply(ctx, r, deploy); err != nil {
 		log.Error(err, "Cannot apply deployment")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if applied {
 		log.Info("Deployment applied successfully")
 		return requeue, nil
@@ -185,7 +169,7 @@ func (r *WireguardReconciler) Reconcile(
 	// Status
 	if err := r.Get(ctx, key, service); err != nil {
 		log.Error(err, "Cannot read service from the cluster")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 	log.Info("Successfully read service from cluster")
 
@@ -195,12 +179,12 @@ func (r *WireguardReconciler) Reconcile(
 		return requeue, nil
 	} else if err != nil {
 		log.Error(err, "Cannot extract endpoint from service")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if err := r.Get(ctx, key, wireguard); err != nil {
 		log.Error(err, "Failed to get wireguard peer")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	wireguard.Status = v1alpha1.WireguardStatus{
@@ -209,11 +193,11 @@ func (r *WireguardReconciler) Reconcile(
 	}
 	if err := r.Status().Update(ctx, wireguard); err != nil {
 		log.Error(err, "Cannot update status")
-		return ctrl.Result{}, err
+		return empty, err
 	}
-	log.Info("Status is updated")
+	log.Info("Status is updated, reconcilation is finished")
 
-	return ctrl.Result{}, nil
+	return empty, nil
 }
 
 func (r *WireguardReconciler) SetupWithManager(mgr ctrl.Manager) error {

@@ -36,6 +36,8 @@ func (r *WireguardPeerReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (
 	ctrl.Result, error) {
 
+	empty := ctrl.Result{}
+	requeue := ctrl.Result{Requeue: true}
 	log := log.FromContext(ctx).WithName("wireguard-peer")
 
 	// WireguardPeer
@@ -43,10 +45,10 @@ func (r *WireguardPeerReconciler) Reconcile(
 	err := r.Get(ctx, req.NamespacedName, peer)
 	if err != nil && !apierrors.IsNotFound(err) {
 		log.Error(err, "Failed to get wireguard peer")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if apierrors.IsNotFound(err) {
-		log.Info("must have been deleted, reconcilation is finished")
-		return ctrl.Result{}, nil
+		log.Info("Must have been deleted, reconcilation is finished")
+		return empty, nil
 	}
 	log.Info("Successfully read peer from cluster, moving on...")
 
@@ -58,13 +60,12 @@ func (r *WireguardPeerReconciler) Reconcile(
 	}
 	if err := r.Get(ctx, wgKey, wireguard); err != nil {
 		log.Error(err, "Cannot retrieve parent wireguard resource")
-		return ctrl.Result{}, nil
+		return empty, err
 	}
 	log.Info("Retrieved parent wireguard resource, moving on...")
 
 	wgPubKey := wireguard.Status.PublicKey
 	wgEndpoint := wireguard.Status.Endpoint
-	requeue := ctrl.Result{Requeue: true}
 	if wgPubKey == nil || wgEndpoint == nil {
 		log.Info("Corresponding wireguard is not yet reconciled",
 			"WireguardRef", peer.Spec.WireguardRef,
@@ -91,7 +92,7 @@ func (r *WireguardPeerReconciler) Reconcile(
 		key, err := wgtypes.GeneratePrivateKey()
 		if err != nil {
 			log.Error(err, "Cannot generate keypair")
-			return ctrl.Result{}, err
+			return empty, err
 		}
 
 		privateKey = key.String()
@@ -99,7 +100,7 @@ func (r *WireguardPeerReconciler) Reconcile(
 	} else if err != nil {
 		// unexpected error
 		log.Error(err, "Cannot fetch corresponding secret from cluster")
-		return ctrl.Result{}, err
+		return empty, err
 	} else {
 		// secret exists, so let's read keys from it
 		privateKey = string(currentSecret.Data["private-key"])
@@ -110,12 +111,12 @@ func (r *WireguardPeerReconciler) Reconcile(
 	desiredSecret, err := fact.Secret(*wgEndpoint, publicKey, privateKey)
 	if err != nil {
 		log.Error(err, "Cannot generate secret")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if applied, err := apply(ctx, r, desiredSecret); err != nil {
 		log.Error(err, "Cannot apply secret")
-		return ctrl.Result{}, err
+		return empty, err
 	} else if applied {
 		log.Info("Secret applied successfully")
 		return requeue, nil
@@ -125,7 +126,7 @@ func (r *WireguardPeerReconciler) Reconcile(
 	// Status
 	if err := r.Get(ctx, req.NamespacedName, peer); err != nil {
 		log.Error(err, "Failed to get wireguard peer")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 
 	if peer.Spec.PublicKey == nil {
@@ -135,11 +136,11 @@ func (r *WireguardPeerReconciler) Reconcile(
 	}
 	if err := r.Status().Update(ctx, peer); err != nil {
 		log.Error(err, "Cannot update status")
-		return ctrl.Result{}, err
+		return empty, err
 	}
 	log.Info("Status is updated")
 
-	return ctrl.Result{}, nil
+	return empty, nil
 }
 
 func (r *WireguardPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {

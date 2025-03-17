@@ -74,7 +74,7 @@ docker: ## Build docker image
 	docker buildx bake --push
 
 .PHONY: build
-build: generate fmt vet ## Build manager binary.
+build: generate fmt vet ## Build operator
 	go build -o $(BIN_PATH) main.go
 
 .PHONY: generate

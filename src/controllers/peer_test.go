@@ -204,9 +204,6 @@ func TestPeerEndpoint(t *testing.T) {
 		err := wgDsl.Apply(ctx, &test.wireguard)
 		assert.Nil(t, err)
 
-		fmt.Printf("endpoint: %v\n", test.wireguard.Status.Endpoint)
-		fmt.Printf("pub key: %v\n", test.wireguard.Status.PublicKey)
-
 		err = peerDsl.Apply(ctx, &test.wireguardPeer)
 		assert.Nil(t, err)
 
