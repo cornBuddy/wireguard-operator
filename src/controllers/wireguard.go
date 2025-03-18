@@ -57,7 +57,7 @@ func (r *WireguardReconciler) Reconcile(
 		log.Info("Must have been deleted, reconcilation is finished")
 		return empty, nil
 	}
-	log.Info("Successfully read wireguard or peer from cluster")
+	log.Info("Successfully read wireguard from cluster")
 
 	// WireguardPeers
 	peers, err := r.getPeers(ctx, wireguard)

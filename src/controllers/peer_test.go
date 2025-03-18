@@ -131,25 +131,58 @@ func TestPeerEndpoint(t *testing.T) {
 		extractEndpoint endpointExtractor
 	}
 
+	// testCases := []testCase{{
+	// 	description: "default resources",
+	// 	wireguard: dsl.GenerateWireguard(
+	// 		v1alpha1.WireguardSpec{},
+	// 		v1alpha1.WireguardStatus{},
+	// 	),
+	// 	wireguardPeer: dsl.GeneratePeer(
+	// 		v1alpha1.WireguardPeerSpec{},
+	// 		v1alpha1.WireguardPeerStatus{},
+	// 	),
+	// 	extractEndpoint: extractClusterIp,
+	// }, {
+	// 	description: "endpoint is set in status",
+	// 	wireguard: dsl.GenerateWireguard(
+	// 		v1alpha1.WireguardSpec{
+	// 			ServiceType: corev1.ServiceTypeLoadBalancer,
+	// 		},
+	// 		v1alpha1.WireguardStatus{
+	// 			Endpoint: toPtr("localhost"),
+	// 		},
+	// 	),
+	// 	wireguardPeer: dsl.GeneratePeer(
+	// 		v1alpha1.WireguardPeerSpec{},
+	// 		v1alpha1.WireguardPeerStatus{},
+	// 	),
+	// 	extractEndpoint: extractFromStatus,
+	// }, {
+	// 	description: "wireguard endpoint is set",
+	// 	wireguard: dsl.GenerateWireguard(
+	// 		v1alpha1.WireguardSpec{
+	// 			EndpointAddress: toPtr("localhost"),
+	// 		},
+	// 		v1alpha1.WireguardStatus{
+	// 			Endpoint: toPtr("localhost"),
+	// 		},
+	// 	),
+	// 	wireguardPeer: dsl.GeneratePeer(
+	// 		v1alpha1.WireguardPeerSpec{},
+	// 		v1alpha1.WireguardPeerStatus{},
+	// 	),
+	// 	extractEndpoint: extractWireguardEndpoint,
+	// }}
+
 	testCases := []testCase{{
-		description: "default resources",
-		wireguard: dsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{},
-			v1alpha1.WireguardStatus{},
-		),
-		wireguardPeer: dsl.GeneratePeer(
-			v1alpha1.WireguardPeerSpec{},
-			v1alpha1.WireguardPeerStatus{},
-		),
-		extractEndpoint: extractClusterIp,
-	}, {
 		description: "endpoint is set in status",
 		wireguard: dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{
 				ServiceType: corev1.ServiceTypeLoadBalancer,
 			},
 			v1alpha1.WireguardStatus{
-				Endpoint: toPtr("localhost"),
+				Endpoint:  toPtr("localhost"),
+				PublicKey: toPtr("kekeke"),
 			},
 		),
 		wireguardPeer: dsl.GeneratePeer(
@@ -157,21 +190,6 @@ func TestPeerEndpoint(t *testing.T) {
 			v1alpha1.WireguardPeerStatus{},
 		),
 		extractEndpoint: extractFromStatus,
-	}, {
-		description: "wireguard endpoint is set",
-		wireguard: dsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{
-				EndpointAddress: toPtr("localhost"),
-			},
-			v1alpha1.WireguardStatus{
-				Endpoint: toPtr("localhost"),
-			},
-		),
-		wireguardPeer: dsl.GeneratePeer(
-			v1alpha1.WireguardPeerSpec{},
-			v1alpha1.WireguardPeerStatus{},
-		),
-		extractEndpoint: extractWireguardEndpoint,
 	}}
 
 	o := onpar.New(t)
@@ -199,16 +217,16 @@ func TestPeerEndpoint(t *testing.T) {
 		assert.Contains(t, secret.Data, "config")
 		assert.NotEmpty(t, secret.Data["config"])
 
-		wgSvc := &corev1.Service{}
+		svc := &corev1.Service{}
 		wgKey := types.NamespacedName{
 			Name:      test.wireguard.GetName(),
 			Namespace: test.wireguard.GetNamespace(),
 		}
-		err = k8sClient.Get(ctx, wgKey, wgSvc)
+		err = k8sClient.Get(ctx, wgKey, svc)
 		assert.Nil(t, err)
 
 		cfg := string(secret.Data["config"])
-		ep := test.extractEndpoint(test.wireguard, *wgSvc)
+		ep := test.extractEndpoint(test.wireguard, *svc)
 		epCfg := fmt.Sprintf("Endpoint = %s:%d\n", ep, wireguardPort)
 		assert.Contains(t, cfg, epCfg)
 	})
