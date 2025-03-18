@@ -22,7 +22,7 @@ type Dsl struct {
 func (dsl Dsl) Reconcile(ctx context.Context, object client.Object) error {
 	// Reconcile resource multiple times to ensure that all resources are
 	// created
-	const reconcilationLoops = 20
+	const reconcilationLoops = 10
 	key := types.NamespacedName{
 		Name:      object.GetName(),
 		Namespace: object.GetNamespace(),

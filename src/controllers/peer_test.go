@@ -229,7 +229,6 @@ func TestPeerEndpoint(t *testing.T) {
 		ep := test.extractEndpoint(test.wireguard, *svc)
 		epCfg := fmt.Sprintf("Endpoint = %s:%d\n", ep, wireguardPort)
 		assert.Contains(t, cfg, epCfg)
-
 	})
 
 	for _, tc := range testCases {
