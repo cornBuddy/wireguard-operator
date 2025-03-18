@@ -65,7 +65,7 @@ test: manifests generate envtest ## Run unit tests.
 		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
 		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kubectl" \
 		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
-		go test -timeout "1m" -cover ./...
+		go test -coverprofile=coverage.out -cover ./...
 
 ##@ Build
 
