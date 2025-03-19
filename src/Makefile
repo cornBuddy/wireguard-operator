@@ -9,29 +9,23 @@ KUSTOMIZE ?= kustomize
 
 BIN_PATH ?= "./wireguard-operator"
 DEPLOY ?= ./config
-LOCALBIN ?= "./bin"
 
 IMAGE ?= wireguard-operator
 TAG ?= latest
 IMG ?= ${IMAGE}:${TAG}
 
-##@ General
-
-.PHONY: default
-default: clean run ## Fresh start of the operator from local sources.
-
-.PHONY: help
-help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
-
 ##@ Development
 
+.PHONY: default
+default: clean run ## Fresh start of the operator from local sources
+
 .PHONY: run
-run: fmt vet install ## Run a controller from your host.
+run: fmt vet install ## Run a controller from your host
 	POD_NAMESPACE=default go run ./main.go
 
 .PHONY: clean
 clean: uninstall undeploy ## Cleans up development environment
+	- minikube delete
 	- docker rmi $(IMG)
 	- rm $(BIN_PATH)
 
@@ -57,15 +51,16 @@ vendor: update tidy ## Packages update and `go mod tidy`
 .PHONY: lint
 lint: tidy fmt vet ## Static analisys of the code
 
-ENVTEST_K8S_VERSION ?= 1.31.0
-KUBEBUILDER_ASSETS := $(shell setup-envtest use --force --bin-dir $(LOCALBIN) --print path $(ENVTEST_K8S_VERSION))
-.PHONY: test ## Run unit tests
-test: manifests generate envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="../$(KUBEBUILDER_ASSETS)" \
-		TEST_ASSET_ETCD="../$(KUBEBUILDER_ASSETS)/etcd" \
-		TEST_ASSET_KUBECTL="../${KUBEBUILDER_ASSETS}/kubectl" \
-		TEST_ASSET_KUBE_APISERVER="../${KUBEBUILDER_ASSETS}/kube-apiserver" \
-		go test -run TestPeerEndpoint -timeout "1m" -cover ./...
+.PHONY: minikube
+minikube: ## Starts minikube for integration testing
+	kubectl get no || minikube start
+	- pkill minikube
+	minikube tunnel &> /dev/null &
+	sleep 5
+
+.PHONY: test
+test: minikube install ## Runs unit and integration tests
+	go test -cover ./...
 
 ##@ Build
 
@@ -98,12 +93,6 @@ kustomize: ## Download kustomize locally if necessary.
 controller-gen:
 	command -v controller-gen \
 		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
-
-.PHONY: envtest
-envtest: ## Installs envtest-setup locally if necessary.
-	mkdir -p $(LOCALBIN)
-	command -v setup-envtest \
-		|| go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 ##@ Deployment
 

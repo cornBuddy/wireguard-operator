@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,6 +33,8 @@ func (dsl Dsl) Reconcile(ctx context.Context, object client.Object) error {
 		if _, err := dsl.Reconciler.Reconcile(ctx, req); err != nil {
 			return err
 		}
+
+		time.Sleep(1 * time.Second)
 	}
 
 	return nil

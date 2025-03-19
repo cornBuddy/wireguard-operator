@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 
 	wgtypes "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	// "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
@@ -27,21 +26,6 @@ type WireguardReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-}
-
-type testLogger struct{}
-
-func (l testLogger) Error(err error, msg string) {
-	fmt.Printf("Error: `%v`, Message: `%v`\n", err, msg)
-}
-
-func (l testLogger) Info(msg string, args ...any) {
-	fmt.Printf("Message: `%v`, Args: `%v`\n", msg, args)
-}
-
-type logger interface {
-	Error(error, string)
-	Info(string, ...any)
 }
 
 //+kubebuilder:rbac:groups=vpn.ahova.com,resources=wireguards,verbs=get;list;watch;create;update;patch;delete
@@ -62,8 +46,7 @@ func (r *WireguardReconciler) Reconcile(
 
 	empty := ctrl.Result{}
 	requeue := ctrl.Result{Requeue: true}
-	// log := log.FromContext(ctx).WithName("wireguard")
-	log := testLogger{}
+	log := log.FromContext(ctx).WithName("wireguard")
 
 	// Wireguard
 	wireguard, err := r.getWireguard(ctx, req.NamespacedName)

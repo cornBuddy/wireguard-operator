@@ -25,67 +25,45 @@ func TestPeerEndpoint(t *testing.T) {
 		extractEndpoint endpointExtractor
 	}
 
-	// testCases := []testCase{{
-	// 	description: "default resources",
-	// 	wireguard: dsl.GenerateWireguard(
-	// 		v1alpha1.WireguardSpec{},
-	// 		v1alpha1.WireguardStatus{},
-	// 	),
-	// 	wireguardPeer: dsl.GeneratePeer(
-	// 		v1alpha1.WireguardPeerSpec{},
-	// 		v1alpha1.WireguardPeerStatus{},
-	// 	),
-	// 	extractEndpoint: extractClusterIp,
-	// }, {
-	// 	description: "endpoint is set in status",
-	// 	wireguard: dsl.GenerateWireguard(
-	// 		v1alpha1.WireguardSpec{
-	// 			ServiceType: corev1.ServiceTypeLoadBalancer,
-	// 		},
-	// 		v1alpha1.WireguardStatus{
-	// 			Endpoint: toPtr("localhost"),
-	// 		},
-	// 	),
-	// 	wireguardPeer: dsl.GeneratePeer(
-	// 		v1alpha1.WireguardPeerSpec{},
-	// 		v1alpha1.WireguardPeerStatus{},
-	// 	),
-	// 	extractEndpoint: extractFromStatus,
-	// }, {
-	// 	description: "wireguard endpoint is set",
-	// 	wireguard: dsl.GenerateWireguard(
-	// 		v1alpha1.WireguardSpec{
-	// 			EndpointAddress: toPtr("localhost"),
-	// 		},
-	// 		v1alpha1.WireguardStatus{
-	// 			Endpoint: toPtr("localhost"),
-	// 		},
-	// 	),
-	// 	wireguardPeer: dsl.GeneratePeer(
-	// 		v1alpha1.WireguardPeerSpec{},
-	// 		v1alpha1.WireguardPeerStatus{},
-	// 	),
-	// 	extractEndpoint: extractWireguardEndpoint,
-	// }}
-
-	// NOTE: this test case is broken because service with type load
-	// balancer cannot be created properly in envtest
 	testCases := []testCase{{
+		description: "default resources",
+		wireguard: dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{},
+			v1alpha1.WireguardStatus{},
+		),
+		wireguardPeer: dsl.GeneratePeer(
+			v1alpha1.WireguardPeerSpec{},
+			v1alpha1.WireguardPeerStatus{},
+		),
+		extractEndpoint: extractClusterIp,
+	}, {
 		description: "endpoint is set in status",
 		wireguard: dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{
 				ServiceType: corev1.ServiceTypeLoadBalancer,
 			},
-			v1alpha1.WireguardStatus{
-				Endpoint:  toPtr("localhost"),
-				PublicKey: toPtr("kekeke"),
-			},
+			v1alpha1.WireguardStatus{},
 		),
 		wireguardPeer: dsl.GeneratePeer(
 			v1alpha1.WireguardPeerSpec{},
 			v1alpha1.WireguardPeerStatus{},
 		),
 		extractEndpoint: extractFromStatus,
+	}, {
+		description: "wireguard endpoint is set",
+		wireguard: dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{
+				EndpointAddress: toPtr("localhost"),
+			},
+			v1alpha1.WireguardStatus{
+				Endpoint: toPtr("localhost"),
+			},
+		),
+		wireguardPeer: dsl.GeneratePeer(
+			v1alpha1.WireguardPeerSpec{},
+			v1alpha1.WireguardPeerStatus{},
+		),
+		extractEndpoint: extractWireguardEndpoint,
 	}}
 
 	o := onpar.New(t)
@@ -131,28 +109,28 @@ func TestPeerEndpoint(t *testing.T) {
 		spec.Entry(tc.description, tc)
 	}
 
-	// o.Spec("should not reconcile when service type is LB and endpoint is not set in status", func(t *testing.T) {
-	// 	wg := dsl.GenerateWireguard(
-	// 		v1alpha1.WireguardSpec{ServiceType: corev1.ServiceTypeLoadBalancer},
-	// 		v1alpha1.WireguardStatus{},
-	// 	)
-	// 	err := wgDsl.Apply(ctx, &wg)
-	// 	assert.Nil(t, err)
+	o.Spec("should not reconcile when service type is LB and endpoint is not set in status", func(t *testing.T) {
+		wg := dsl.GenerateWireguard(
+			v1alpha1.WireguardSpec{ServiceType: corev1.ServiceTypeLoadBalancer},
+			v1alpha1.WireguardStatus{},
+		)
+		err := wgDsl.Apply(ctx, &wg)
+		assert.Nil(t, err)
 
-	// 	peer := dsl.GeneratePeer(
-	// 		v1alpha1.WireguardPeerSpec{WireguardRef: wg.GetName()},
-	// 		v1alpha1.WireguardPeerStatus{},
-	// 	)
-	// 	err = wgDsl.Apply(ctx, &peer)
-	// 	assert.Nil(t, err)
+		peer := dsl.GeneratePeer(
+			v1alpha1.WireguardPeerSpec{WireguardRef: wg.GetName()},
+			v1alpha1.WireguardPeerStatus{},
+		)
+		err = wgDsl.Apply(ctx, &peer)
+		assert.Nil(t, err)
 
-	// 	key := types.NamespacedName{
-	// 		Name:      peer.GetName(),
-	// 		Namespace: peer.GetNamespace(),
-	// 	}
-	// 	err = k8sClient.Get(ctx, key, &peer)
-	// 	assert.NotNil(t, err)
-	// })
+		key := types.NamespacedName{
+			Name:      peer.GetName(),
+			Namespace: peer.GetNamespace(),
+		}
+		err = k8sClient.Get(ctx, key, &peer)
+		assert.NotNil(t, err)
+	})
 }
 
 func TestPeerSecret(t *testing.T) {

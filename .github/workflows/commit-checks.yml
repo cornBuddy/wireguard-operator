@@ -34,7 +34,7 @@ jobs:
         with:
           go-version: stable
           check-latest: true
-      - run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+      - uses: medyagh/setup-minikube@latest
       - run: make test
 
   release-candidate:
