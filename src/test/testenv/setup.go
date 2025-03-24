@@ -6,6 +6,7 @@ import (
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/flowcontrol"
 )
 
 func Setup() (*rest.Config, error) {
@@ -19,6 +20,8 @@ func Setup() (*rest.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	config.RateLimiter = flowcontrol.NewFakeAlwaysRateLimiter()
 
 	return config, nil
 }
