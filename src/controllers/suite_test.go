@@ -10,11 +10,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	k8sLog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
 	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
 	"github.com/cornbuddy/wireguard-operator/src/test/testenv"
-	//+kubebuilder:scaffold:imports
 )
 
 const (
@@ -62,6 +63,11 @@ func TestMain(m *testing.M) {
 			Scheme: k8sClient.Scheme(),
 		},
 	}
+
+	opts := zap.Options{
+		Development: true,
+	}
+	k8sLog.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	os.Exit(m.Run())
 }

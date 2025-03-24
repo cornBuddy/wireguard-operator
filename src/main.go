@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme = runtime.NewScheme()
+	log    = ctrl.Log.WithName("setup")
 )
 
 func init() {
@@ -37,7 +37,7 @@ func init() {
 func main() {
 	namespace, found := os.LookupEnv("POD_NAMESPACE")
 	if !found {
-		setupLog.Info("POD_NAMESPACE env var is not set")
+		log.Info("POD_NAMESPACE env var is not set")
 		os.Exit(1)
 	}
 
@@ -72,7 +72,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		log.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
@@ -81,7 +81,7 @@ func main() {
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("wireguard-peer-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "WireguardPeer")
+		log.Error(err, "unable to create controller", "controller", "WireguardPeer")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
@@ -91,23 +91,23 @@ func main() {
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("wireguard-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Wireguard")
+		log.Error(err, "unable to create controller", "controller", "Wireguard")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
+		log.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+		log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	log.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		log.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }

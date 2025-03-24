@@ -37,7 +37,7 @@ func TestPeerEndpoint(t *testing.T) {
 		),
 		extractEndpoint: extractClusterIp,
 	}, {
-		description: "endpoint is set in status",
+		description: "should extract public ip",
 		wireguard: dsl.GenerateWireguard(
 			v1alpha1.WireguardSpec{
 				ServiceType: corev1.ServiceTypeLoadBalancer,
