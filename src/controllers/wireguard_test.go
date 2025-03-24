@@ -4,17 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
-
+	"github.com/poy/onpar"
+	"github.com/stretchr/testify/assert"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/poy/onpar"
-	"github.com/stretchr/testify/assert"
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+	"github.com/cornbuddy/wireguard-operator/src/test/dsl"
 )
 
 func TestWireguardSecret(t *testing.T) {
@@ -306,8 +304,7 @@ func TestWireguardStatus(t *testing.T) {
 		}, timeout, tick)
 
 		ep := test.extractEndpoint(wg, *service)
-		wantEndpoint := fmt.Sprintf("%s:%d", ep, wireguardPort)
-		assert.Equal(t, wantEndpoint, *wg.Status.Endpoint)
+		assert.Equal(t, ep, *wg.Status.Endpoint)
 	})
 
 	for _, tc := range testCases {

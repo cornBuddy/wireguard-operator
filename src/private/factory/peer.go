@@ -69,7 +69,7 @@ func (fact Peer) secret(endpoint, publicKey, privateKey string) (
 		if err != nil {
 			return nil, err
 		}
-		// lookup output can be not determenistic, so let's sort it to
+		// lookup output is not not determenistic, so let's sort it to
 		// avoid infinite reconcilation loop
 		sort.Strings(addrs)
 		dns = addrs[0]

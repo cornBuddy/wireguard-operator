@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -30,6 +31,8 @@ var (
 	peerDsl   dsl.Dsl
 	ctx       = context.TODO()
 )
+
+type endpointExtractor func(v1alpha1.Wireguard, corev1.Service) string
 
 func TestMain(m *testing.M) {
 	config, err := testenv.Setup()
@@ -73,17 +76,13 @@ func TestMain(m *testing.M) {
 }
 
 func extractClusterIp(_ v1alpha1.Wireguard, svc corev1.Service) string {
-	return svc.Spec.ClusterIP
+	return fmt.Sprintf("%s:%d", svc.Spec.ClusterIP, wireguardPort)
 }
 
 func extractWireguardEndpoint(wg v1alpha1.Wireguard, _ corev1.Service) string {
-	return *wg.Spec.EndpointAddress
+	return fmt.Sprintf("%s:%d", *wg.Spec.EndpointAddress, wireguardPort)
 }
 
 func extractFromStatus(wg v1alpha1.Wireguard, _ corev1.Service) string {
-	if wg.Status.Endpoint == nil {
-		return "wtf????"
-	}
-
 	return *wg.Status.Endpoint
 }

@@ -35,7 +35,7 @@ func TestPeerEndpoint(t *testing.T) {
 			v1alpha1.WireguardPeerSpec{},
 			v1alpha1.WireguardPeerStatus{},
 		),
-		extractEndpoint: extractClusterIp,
+		extractEndpoint: extractFromStatus,
 	}, {
 		description: "should extract public ip",
 		wireguard: dsl.GenerateWireguard(
@@ -63,7 +63,7 @@ func TestPeerEndpoint(t *testing.T) {
 			v1alpha1.WireguardPeerSpec{},
 			v1alpha1.WireguardPeerStatus{},
 		),
-		extractEndpoint: extractWireguardEndpoint,
+		extractEndpoint: extractFromStatus,
 	}}
 
 	o := onpar.New(t)
@@ -101,7 +101,7 @@ func TestPeerEndpoint(t *testing.T) {
 
 		cfg := string(secret.Data["config"])
 		ep := test.extractEndpoint(test.wireguard, *svc)
-		epCfg := fmt.Sprintf("Endpoint = %s:%d\n", ep, wireguardPort)
+		epCfg := fmt.Sprintf("Endpoint = %s\n", ep)
 		assert.Contains(t, cfg, epCfg)
 	})
 

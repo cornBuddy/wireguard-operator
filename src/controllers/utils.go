@@ -6,8 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,12 +14,6 @@ import (
 
 	"github.com/cisco-open/k8s-objectmatcher/patch"
 )
-
-const (
-	wireguardRef = ".spec.wireguardRef"
-)
-
-type endpointExtractor func(v1alpha1.Wireguard, corev1.Service) string
 
 type reconciler interface {
 	client.Reader
