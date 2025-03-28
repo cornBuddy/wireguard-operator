@@ -166,6 +166,10 @@ func (r *WireguardReconciler) Reconcile(
 	}
 	log.Info("Deployment is up to date")
 
+	// FIXME: when reconcilation is triggered by peer, code below fails,
+	// because `key` contains peer name, whilst it must contain wireguard
+	// name
+
 	// Status
 	if err := r.Get(ctx, key, service); err != nil {
 		log.Error(err, "Cannot read service from the cluster")
@@ -183,7 +187,7 @@ func (r *WireguardReconciler) Reconcile(
 	}
 
 	if err := r.Get(ctx, key, wireguard); err != nil {
-		log.Error(err, "Failed to get wireguard peer")
+		log.Error(err, "Failed to refetch wireguard")
 		return empty, err
 	}
 
@@ -233,15 +237,16 @@ func (r *WireguardReconciler) getWireguard(
 	// by peer (see SetupWithManager), or wireguard resource was
 	// deleted. checking if it was triggered by peer
 	peer := &v1alpha1.WireguardPeer{}
-	err = r.Get(ctx, key, peer)
-	if err != nil {
+	if err := r.Get(ctx, key, peer); err != nil {
 		return nil, err
 	}
 
 	// peer was found, but we still need to fetch wireguard resource
-	key.Name = peer.Spec.WireguardRef
-	err = r.Get(ctx, key, wireguard)
-	if err != nil {
+	wgKey := types.NamespacedName{
+		Name:      peer.Spec.WireguardRef,
+		Namespace: peer.GetNamespace(),
+	}
+	if err := r.Get(ctx, wgKey, wireguard); err != nil {
 		return nil, err
 	}
 
