@@ -128,7 +128,7 @@ resource "aws_autoscaling_group" "nat_instance" {
     create_before_destroy = true
   }
   dynamic "tag" {
-    for_each = local.nat_instance_tags_asg
+    for_each = local.all_tags_asg
 
     content {
       key                 = tag.value["key"]
