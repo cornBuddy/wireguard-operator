@@ -19,9 +19,4 @@ locals {
       propagate_at_launch = true,
     }
   ]
-  nat_instance_tags_asg = concat(local.all_tags_asg, [{
-    key                 = "NodeExporterEnabled",
-    value               = "true",
-    propagate_at_launch = true,
-  }])
 }
