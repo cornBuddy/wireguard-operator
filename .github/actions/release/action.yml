@@ -33,15 +33,18 @@ runs:
         PRERELEASE_SUFFIX: rc
         WITH_V: true
         DRY_RUN: false
-    - uses: mikepenz/release-changelog-builder-action@v5
+    - uses: TriPSs/conventional-changelog-action@v5
       id: changelog
       with:
-        token: ${{ inputs.github_token }}
+        github-token: ${{ secrets.github_token }}
+        skip-commit: "true"
+        skip-tag: "true"
+        skip-git-pull: "true"
     - uses: ncipollo/release-action@v1
       with:
         tag: ${{ steps.tag.outputs.new_tag }}
         name: ${{ steps.tag.outputs.new_tag }}
-        body: ${{ steps.changelog.outputs.changelog }}
+        body: ${{ steps.changelog.outputs.clean_changelog }}
         prerelease: ${{ inputs.prerelease }}
     - uses: docker/login-action@v3
       with:
