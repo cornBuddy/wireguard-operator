@@ -166,10 +166,6 @@ func (r *WireguardReconciler) Reconcile(
 	}
 	log.Info("Deployment is up to date")
 
-	// FIXME: when reconcilation is triggered by peer, code below fails,
-	// because `key` contains peer name, whilst it must contain wireguard
-	// name
-
 	// Status
 	if err := r.Get(ctx, key, service); err != nil {
 		log.Error(err, "Cannot read service from the cluster")
