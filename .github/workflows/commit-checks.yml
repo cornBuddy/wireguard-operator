@@ -54,20 +54,14 @@ jobs:
           prerelease: true
 
   submit-pull-request:
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     permissions: write-all
     needs:
       - release-candidate
     steps:
       - uses: actions/checkout@v4
-      - run: >-
-          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          >> $GITHUB_OUTPUT
-        id: extract_branch
       - run: |
-          gh pr create \
-          --base main \
-          --head "${{ steps.extract_branch.outputs.branch }}" \
-          --fill-first || true
+          gh pr create --base main --head develop --fill
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
