@@ -1,0 +1,62 @@
+---
+name: release
+description: releases operator
+
+inputs:
+  github_token:
+    required: true
+    description: github token to permorm operations to api
+  image:
+    required: true
+    description: name of the image within registry
+  registry:
+    required: true
+    description: address of the docker registry to push image to
+  prerelease:
+    required: true
+    description: indicates whether it's pre-release or not
+  extra_tags:
+    required: false
+    default: ""
+    description: extra tags to tag image with
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-qemu-action@v3
+    - uses: docker/setup-buildx-action@v3
+    - uses: anothrNick/github-tag-action@v1
+      id: tag
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        PRERELEASE: ${{ inputs.prerelease }}
+        PRERELEASE_SUFFIX: rc
+        WITH_V: true
+        DRY_RUN: false
+    - uses: mathieudutour/github-tag-action@v6.2
+      id: changelog
+      with:
+        github_token: ${{ inputs.github_token }}
+        dry_run: true
+    - uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ steps.tag.outputs.new_tag }}
+        name: ${{ steps.tag.outputs.new_tag }}
+        prerelease: ${{ inputs.prerelease }}
+        generateReleaseNotes: true
+    - uses: docker/login-action@v3
+      with:
+        username: ${{ github.actor }}
+        password: ${{ inputs.github_token }}
+        registry: ${{ inputs.registry }}
+    - run: make docker
+      env:
+        TAG: ${{ steps.tag.outputs.new_tag }}
+        IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
+    - if: ${{ inputs.extra_tags != '' }}
+      run: |
+        for tag in ${{ inputs.extra_tags }}; do
+          TAG=$tag make docker
+        done
+      env:
+        IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
