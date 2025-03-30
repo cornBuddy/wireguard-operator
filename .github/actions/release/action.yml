@@ -42,8 +42,8 @@ runs:
       with:
         tag: ${{ steps.tag.outputs.new_tag }}
         name: ${{ steps.tag.outputs.new_tag }}
+        body: ${{ steps.changelog.outputs.changelog }}
         prerelease: ${{ inputs.prerelease }}
-        generateReleaseNotes: true
     - uses: docker/login-action@v3
       with:
         username: ${{ github.actor }}
