@@ -50,6 +50,7 @@ runs:
         password: ${{ inputs.github_token }}
         registry: ${{ inputs.registry }}
     - run: make docker
+      shell: bash
       env:
         TAG: ${{ steps.tag.outputs.new_tag }}
         IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
@@ -58,5 +59,6 @@ runs:
         for tag in ${{ inputs.extra_tags }}; do
           TAG=$tag make docker
         done
+      shell: bash
       env:
         IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
