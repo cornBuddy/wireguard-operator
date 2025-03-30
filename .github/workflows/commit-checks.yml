@@ -46,7 +46,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/release
-        id: tag
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           image: ${{ github.repository }}
