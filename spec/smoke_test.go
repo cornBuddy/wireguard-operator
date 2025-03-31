@@ -132,7 +132,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 			t.Log("Tearing stack down")
 			err = peer.Down(ctx, compose.RemoveOrphans(true))
 			assert.Nil(t, err, "should stop peer")
-		}, timeout, tick, "should eventually produce a valid secret")
+		}, timeout, tick, "peer should be connectable")
 	})
 
 	dri := dsl.DynamicClient.Resource(testdsl.PeerGvr).Namespace(namespace)
