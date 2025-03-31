@@ -120,8 +120,9 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 
 				t.Logf("validating output of `%v`", tc.command)
 				bytes, err := io.ReadAll(reader)
-				output := string(bytes)
 				assert.Nil(c, err)
+
+				output := string(bytes)
 				assert.NotEmpty(c, output)
 				assert.Contains(c, output, tc.contains)
 

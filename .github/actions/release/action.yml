@@ -33,18 +33,19 @@ runs:
         PRERELEASE_SUFFIX: rc
         WITH_V: true
         DRY_RUN: false
-    - uses: TriPSs/conventional-changelog-action@v5
+    - uses: requarks/changelog-action@v1
       id: changelog
       with:
-        github-token: ${{ inputs.github_token }}
-        skip-commit: "true"
-        skip-tag: "true"
-        skip-git-pull: "true"
+        token: ${{ inputs.github_token }}
+        tag: ${{ steps.tag.outputs.new_tag }}
+        fromTag: ${{ steps.tag.outputs.old_tag }}
+        excludeTypes: ""
+        writeToFile: false
     - uses: ncipollo/release-action@v1
       with:
         tag: ${{ steps.tag.outputs.new_tag }}
         name: ${{ steps.tag.outputs.new_tag }}
-        body: ${{ steps.changelog.outputs.clean_changelog }}
+        body: ${{ steps.changelog.outputs.changes }}
         prerelease: ${{ inputs.prerelease }}
     - uses: docker/login-action@v3
       with:
