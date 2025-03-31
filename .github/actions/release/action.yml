@@ -23,8 +23,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: docker/setup-qemu-action@v3
-    - uses: docker/setup-buildx-action@v3
     - uses: anothrNick/github-tag-action@v1
       id: tag
       env:
@@ -47,6 +45,8 @@ runs:
         name: ${{ steps.tag.outputs.new_tag }}
         body: ${{ steps.changelog.outputs.changes }}
         prerelease: ${{ inputs.prerelease }}
+    - uses: docker/setup-qemu-action@v3
+    - uses: docker/setup-buildx-action@v3
     - uses: docker/login-action@v3
       with:
         username: ${{ github.actor }}
