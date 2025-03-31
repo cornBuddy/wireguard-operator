@@ -51,18 +51,3 @@ jobs:
           image: ${{ github.repository }}
           registry: ghcr.io
           prerelease: true
-
-  submit-pull-request:
-    if: github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-latest
-    permissions: write-all
-    needs:
-      - release-candidate
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - run: |
-          gh pr create --base main --head develop --fill-first
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
