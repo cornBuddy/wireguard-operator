@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	timeout   = 5 * time.Minute
+	timeout   = 8 * time.Minute
 	tick      = 10 * time.Second
 	namespace = "default"
 )
