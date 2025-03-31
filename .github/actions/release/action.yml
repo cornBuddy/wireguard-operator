@@ -35,7 +35,8 @@ runs:
       id: changelog
       with:
         token: ${{ inputs.github_token }}
-        tag: refs/tags/${{ steps.tag.outputs.new_tag }}
+        fromTag: ${{ steps.tag.outputs.new_tag }}
+        toTag: ${{ steps.tag.outputs.old_tag }}
         excludeTypes: ""
         writeToFile: false
     - uses: ncipollo/release-action@v1
