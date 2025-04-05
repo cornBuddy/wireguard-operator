@@ -19,7 +19,9 @@ clean:
 
 .PHONY: nuke
 nuke:
-	docker compose --file third_party/aws-nuke/docker-compose.yml up --remove-orphans
+	docker compose \
+		--file third_party/aws-nuke/docker-compose.yml up \
+		--remove-orphans
 
 .PHONY: smoke
 smoke:

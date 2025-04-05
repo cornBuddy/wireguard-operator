@@ -84,11 +84,10 @@ manifests: controller-gen ## Generate CRDs
 		crd paths="./..." \
 		output:crd:artifacts:config=$(DEPLOY)/crd/bases
 
-KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
+KUSTOMIZE_INSTALL ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
 kustomize: ## Download kustomize locally if necessary.
-	command -v kustomize \
-		|| curl -s $(KUSTOMIZE_INSTALL_SCRIPT)
+	command -v kustomize || curl -s $(KUSTOMIZE_INSTALL)
 
 .PHONY: controller-gen
 controller-gen:
