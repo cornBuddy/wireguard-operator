@@ -25,7 +25,7 @@ jobs:
           filters: |
             source:
               - '**/*.go'
-              - '*/go.mod'
+              - '**/*.mod'
               - 'src/Dockerfile'
               - '!src/**/*_test.go'
 
