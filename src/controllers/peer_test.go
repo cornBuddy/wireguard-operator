@@ -1,7 +1,5 @@
 package controllers
 
-// kek
-
 import (
 	"fmt"
 	"testing"
