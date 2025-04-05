@@ -73,8 +73,9 @@ build: generate fmt vet ## Build operator
 	go build -o $(BIN_PATH) main.go
 
 .PHONY: generate
-generate: controller-gen ## Generates some golang code for CRDs
+generate: controller-gen kustomize ## Generates some golang code for CRDs
 	$(CONTROLLER_GEN) object:headerFile="" paths="./..."
+	$(KUSTOMIZE) build $(DEPLOY)/default > $(DEPLOY)/manifest.yml
 
 .PHONY: manifests
 manifests: controller-gen ## Generate CRDs
