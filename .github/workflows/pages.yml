@@ -28,7 +28,6 @@ jobs:
         env:
           JEKYLL_ENV: production
       - uses: actions/upload-pages-artifact@v3
-        working-directory: docs
 
   deploy:
     runs-on: ubuntu-latest
@@ -39,4 +38,3 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
-        working-directory: docs
