@@ -24,10 +24,10 @@ jobs:
           predicate-quantifier: every
           filters: |
             source:
-              - **/*.go
-              - **/go.mod
-              - **/Dockerfile
-              - !src/**/*_test.go
+              - '**/*.go'
+              - '**/go.mod'
+              - '**/Dockerfile'
+              - '!src/**/*_test.go'
 
   acceptance:
     if: ${{ needs.changes.outputs.source == 'true' }}
