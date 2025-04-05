@@ -2,3 +2,17 @@
 theme: just-the-docs
 title: Wireguard operator
 description: Documentation for wireguard operator
+
+defaults:
+  - scope:
+      path: pages
+      type: pages
+    values:
+      layout: default
+
+exclude:
+  - .jekyll-cache/
+  - Gemfile
+  - Gemfile.lock
+  - Makefile
+  - README.md
