@@ -24,11 +24,11 @@ jobs:
       - uses: actions/configure-pages@v5
         id: pages
       - run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
-        working_dir: docs
+        working-directory: docs
         env:
           JEKYLL_ENV: production
       - uses: actions/upload-pages-artifact@v3
-        working_dir: docs
+        working-directory: docs
 
   deploy:
     runs-on: ubuntu-latest
@@ -39,4 +39,4 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
-        working_dir: docs
+        working-directory: docs
