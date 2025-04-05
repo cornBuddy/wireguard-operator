@@ -16,3 +16,7 @@ exclude:
   - Gemfile.lock
   - Makefile
   - README.md
+
+aux_links:
+  Source Code:
+    - https://github.com/cornbuddy/wireguard-operator
