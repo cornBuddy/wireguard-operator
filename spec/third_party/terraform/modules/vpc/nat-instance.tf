@@ -108,8 +108,8 @@ resource "aws_autoscaling_group" "nat_instance" {
   availability_zones        = [aws_subnet.public[each.key].availability_zone]
   mixed_instances_policy {
     instances_distribution {
-      on_demand_base_capacity                  = var.nat_instance_distribution.on_demand_base_capacity
-      on_demand_percentage_above_base_capacity = var.nat_instance_distribution.on_demand_percentage_above_base_capacity
+      on_demand_base_capacity                  = 1
+      on_demand_percentage_above_base_capacity = 100
     }
     launch_template {
       launch_template_specification {
