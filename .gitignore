@@ -1,7 +1,9 @@
-coverage.out
+docs/_site/
+docs/.jekyll-cache
 
-wireguard-operator
 src/bin/*
+src/wireguard-operator
+src/coverage.out
 
 .terraform/
 *.tfstate*

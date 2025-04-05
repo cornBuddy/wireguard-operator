@@ -36,6 +36,10 @@ env:
 smoke:
 	@$(MAKE) -C spec smoke
 
+.PHONY: docs
+docs:
+	@$(MAKE) -C docs run
+
 .PHONY: pre-commit
 pre-commit:
 	pre-commit install

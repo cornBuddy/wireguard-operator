@@ -64,24 +64,4 @@ module "eks" {
       description = "allow metrics server traffic",
     },
   }
-  node_security_group_additional_rules = {
-    # cilium uses icmp to check connectivity, and icmp is not allowed by default
-    icmp = {
-      protocol    = "icmp",
-      from_port   = -1,
-      to_port     = -1,
-      type        = "ingress",
-      self        = true,
-      description = "allow icmp traffic from within cluster",
-    },
-    # https://docs.cilium.io/en/stable/network/concepts/routing/#requirements-on-the-network
-    vxlan = {
-      protocol    = "UDP",
-      from_port   = 8472,
-      to_port     = 8472,
-      type        = "ingress",
-      self        = true,
-      description = "allow vxlan traffic from within cluster",
-    },
-  }
 }

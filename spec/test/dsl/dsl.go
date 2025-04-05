@@ -97,7 +97,10 @@ func (dsl Dsl) DeletePeer(name, namespace string) error {
 	return nil
 }
 
-func (dsl Dsl) CreateWireguardWithSpec(namespace string, spec spec) (string, error) {
+func (dsl Dsl) CreateWireguardWithSpec(
+	namespace string, spec spec) (
+	string, error) {
+
 	if spec["serviceAnnotations"] == nil {
 		spec["serviceAnnotations"] = map[string]interface{}{}
 	}

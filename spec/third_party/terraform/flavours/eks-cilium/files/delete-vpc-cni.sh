@@ -12,7 +12,5 @@ delete_if_exists() {
     fi
 }
 
-# https://github.com/littlejo/cilium-eks-cookbook/blob/main/install-cilium-eks-helm.md#cilium-installation
-
 delete_if_exists "kube-system" "daemonset" "aws-node"
 delete_if_exists "kube-system" "configmap" "amazon-vpc-cni"

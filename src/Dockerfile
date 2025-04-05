@@ -1,4 +1,4 @@
-FROM golang:1.23 AS builder
+FROM golang:1.24 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=$TARGETOS
@@ -12,10 +12,10 @@ RUN go mod download
 
 COPY . .
 RUN go build \
-    -a -v \
-    -gcflags=all="-l -B" \
-    -ldflags="-w -s" \
-    -o wireguard-operator main.go
+	-a -v \
+	-gcflags=all="-l -B" \
+	-ldflags="-w -s" \
+	-o wireguard-operator main.go
 
 FROM scratch
 COPY --from=builder /workspace/wireguard-operator .

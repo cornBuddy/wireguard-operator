@@ -29,6 +29,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         PRERELEASE: ${{ inputs.prerelease }}
         PRERELEASE_SUFFIX: rc
+        DEFAULT_BUMP: patch
         WITH_V: true
         DRY_RUN: false
     - uses: requarks/changelog-action@v1
