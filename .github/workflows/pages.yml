@@ -1,6 +1,13 @@
 ---
 name: update docs
-on: push
+
+on:
+  push:
+    branches:
+      - main
+      - docs/init
+    paths:
+      - "docs/**"
 
 permissions:
   contents: read
@@ -14,6 +21,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -21,13 +31,15 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true
           cache-version: 0
+          working-directory: '${{ github.workspace }}/docs'
       - uses: actions/configure-pages@v5
         id: pages
       - run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
-        working-directory: docs
         env:
           JEKYLL_ENV: production
       - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site/
 
   deploy:
     runs-on: ubuntu-latest
