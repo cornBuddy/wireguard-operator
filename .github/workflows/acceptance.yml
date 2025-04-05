@@ -25,6 +25,7 @@ jobs:
           filters: |
             source:
               - '**/*.go'
+              - '**/go.mod'
               - '!src/**/*_test.go'
 
   acceptance:
