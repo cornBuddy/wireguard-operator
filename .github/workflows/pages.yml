@@ -14,7 +14,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.event.repository.name }}
+  group: docs-${{ github.event.repository.name }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +33,9 @@ jobs:
           working-directory: '${{ github.workspace }}/docs'
       - uses: actions/configure-pages@v5
         id: pages
-      - run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+      - run: >-
+          bundle exec jekyll build
+          --baseurl "${{ steps.pages.outputs.base_path }}"
         env:
           JEKYLL_ENV: production
       - uses: actions/upload-pages-artifact@v3
