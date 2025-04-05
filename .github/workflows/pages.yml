@@ -1,10 +1,12 @@
 ---
 name: update docs
 
-on:
-  push:
-    paths:
-      - "docs/**"
+on: push
+# push:
+#   branches:
+#     - main
+#   paths:
+#     - "docs/**"
 
 permissions:
   contents: read
