@@ -21,13 +21,11 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          predicate-quantifier: every
           filters: |
             source:
               - '**/*.go'
               - '**/*.mod'
-              - 'src/Dockerfile'
-              - '!src/**/*_test.go'
+              - '*/Dockerfile'
 
   acceptance:
     if: ${{ needs.changes.outputs.source == 'true' }}
