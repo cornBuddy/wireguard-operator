@@ -1,0 +1,8 @@
+This project is written under heavy influence of TDD, BDD and CD engineering
+practices. So before submitting a pull request, please keep in mind the
+following:
+
+1. You have to write tests before writing any code, no exceptions
+2. If the change is simple and doesn't add a new features, unit and integration
+tests are enough. Othervise you need to add a new acceptance tests which will
+cover changes you going to make
