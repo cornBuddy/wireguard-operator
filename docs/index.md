@@ -7,4 +7,4 @@ nav_order: 0
 # Wireguard operator
 
 This product is created to provision wireguard peers inside k8s cluster using
-CRDs
+CRDs. It was tested well in EKS cluster with cilium CNI running in overlay mode.
