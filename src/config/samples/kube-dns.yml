@@ -16,20 +16,6 @@ spec:
     # using tcp protocol instead of https because I don't want to implement
     # authz for kubelet, I just need some basic health check for nodes
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "tcp"
-  affinity:
-    # for some reason, wireguard traffic is not forwarded betweeen zones (eg
-    # if peer picked ip from zone b, and wireguard pod is placed in zone a, pod
-    # in zone a will not receive any traffic), so it's required to force all
-    # wireguard pods to live in different azs
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - topologyKey: topology.kubernetes.io/zone
-          labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/instance
-                operator: In
-                values:
-                  - wireguard-sample
 
 ---
 apiVersion: vpn.ahova.com/v1alpha1
