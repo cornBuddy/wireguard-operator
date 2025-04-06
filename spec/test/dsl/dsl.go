@@ -31,8 +31,7 @@ import (
 const (
 	PeerServiceName = "peer"
 
-	kubeDnsSample  = "../src/config/samples/kube-dns.yml"
-	sidecarSample  = "../src/config/samples/sidecar.yml"
+	samples        = "../src/config/samples/"
 	wireguardImage = "linuxserver/wireguard:1.0.20210914"
 )
 
@@ -47,8 +46,6 @@ var (
 		Version:  "v1alpha1",
 		Resource: "wireguardpeers",
 	}
-
-	samples = []string{kubeDnsSample, sidecarSample}
 )
 
 type Dsl struct {
@@ -195,26 +192,20 @@ func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 }
 
 func (dsl Dsl) ApplySamples(namespace string) error {
-	for _, sample := range samples {
-		cmd := exec.Command(
-			"kubectl", "apply", "-f", sample, "-n", namespace,
-		)
-		if err := cmd.Run(); err != nil {
-			return err
-		}
+	apply := fmt.Sprintf("kustomize build %s | kubectl apply -f -", samples)
+	cmd := exec.Command("bash", "-c", apply)
+	if err := cmd.Run(); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (dsl Dsl) DeleteSamples(namespace string) error {
-	for _, sample := range samples {
-		cmd := exec.Command(
-			"kubectl", "delete", "-f", sample, "-n", namespace,
-		)
-		if err := cmd.Run(); err != nil {
-			return err
-		}
+	delete := fmt.Sprintf("kustomize build %s | kubectl delete -f -", samples)
+	cmd := exec.Command("bash", "-c", delete)
+	if err := cmd.Run(); err != nil {
+		return err
 	}
 
 	return nil
