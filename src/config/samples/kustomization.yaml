@@ -1,5 +1,6 @@
 ---
 resources:
+- defaults.yml
 - kube-dns.yml
 - sidecar.yml
 #+kubebuilder:scaffold:manifestskustomizesamples
