@@ -4,10 +4,11 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+CRD_GEN_DOCS ?= crd-ref-docs
 CONTROLLER_GEN ?= controller-gen
 KUSTOMIZE ?= kustomize
 
-BIN_PATH ?= "./wireguard-operator"
+BIN_PATH ?= ./wireguard-operator
 DEPLOY ?= ./config
 
 IMAGE ?= wireguard-operator
@@ -73,9 +74,15 @@ build: generate fmt vet ## Build operator
 	go build -o $(BIN_PATH) main.go
 
 .PHONY: generate
-generate: controller-gen kustomize ## Generates some golang code for CRDs
+generate: controller-gen kustomize crd-ref-docs ## Generates stuff
 	$(CONTROLLER_GEN) object:headerFile="" paths="./..."
 	$(KUSTOMIZE) build $(DEPLOY)/default > $(DEPLOY)/manifest.yml
+	$(CRD_GEN_DOCS) \
+		--renderer=markdown \
+		--config=crd-ref-docs.yml \
+		--templates-dir=docs-templates/ \
+		--output-path=../docs/pages/crds.md \
+		--source-path=api/
 
 .PHONY: manifests
 manifests: controller-gen ## Generate CRDs
@@ -90,9 +97,14 @@ kustomize: ## Download kustomize locally if necessary.
 	command -v kustomize || curl -s $(KUSTOMIZE_INSTALL)
 
 .PHONY: controller-gen
-controller-gen:
+controller-gen: ## Installs controller-gen
 	command -v controller-gen \
 		|| go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
+
+.PHONY: crd-ref-docs
+crd-ref-docs: ## Installs crd-ref-docs
+	command -v crd-ref-docs \
+		|| go github.com/elastic/crd-ref-docs@latest
 
 ##@ Deployment
 
