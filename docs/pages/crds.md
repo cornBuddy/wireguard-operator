@@ -16,9 +16,7 @@ group
 
 ### Resource Types
 - [Wireguard](#wireguard)
-- [WireguardList](#wireguardlist)
 - [WireguardPeer](#wireguardpeer)
-- [WireguardPeerList](#wireguardpeerlist)
 
 
 
@@ -45,33 +43,15 @@ WireguardPeer is the Schema for the wireguardpeers API
 
 
 
-_Appears in:_
-- [WireguardList](#wireguardlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `vpn.ahova.com/v1alpha1` | | |
 | `kind` _string_ | `Wireguard` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[WireguardSpec](#wireguardspec)_ |  |  |  |
-
-
-#### WireguardList
-
-
-
-WireguardPeerList contains a list of Wireguard Peer
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `vpn.ahova.com/v1alpha1` | | |
-| `kind` _string_ | `WireguardList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Wireguard](#wireguard) array_ |  |  |  |
+| `status` _[WireguardStatus](#wireguardstatus)_ |  |  |  |
 
 
 #### WireguardPeer
@@ -82,33 +62,15 @@ WireguardPeer is the Schema for the wireguardpeers API
 
 
 
-_Appears in:_
-- [WireguardPeerList](#wireguardpeerlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `vpn.ahova.com/v1alpha1` | | |
 | `kind` _string_ | `WireguardPeer` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[WireguardPeerSpec](#wireguardpeerspec)_ |  |  |  |
-
-
-#### WireguardPeerList
-
-
-
-WireguardPeerList contains a list of Wireguard Peer
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `vpn.ahova.com/v1alpha1` | | |
-| `kind` _string_ | `WireguardPeerList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[WireguardPeer](#wireguardpeer) array_ |  |  |  |
+| `status` _[WireguardPeerStatus](#wireguardpeerstatus)_ |  |  |  |
 
 
 #### WireguardPeerSpec
@@ -129,6 +91,20 @@ _Appears in:_
 | `publicKey` _string_ | Public key of the peer |  | MaxLength: 44 <br />MinLength: 44 <br />Optional: \{\} <br /> |
 
 
+#### WireguardPeerStatus
+
+
+
+
+
+
+
+_Appears in:_
+- [WireguardPeer](#wireguardpeer)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `publicKey` _string_ |  |  |  |
 
 
 #### WireguardSpec
@@ -145,17 +121,32 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `replicas` _integer_ | Replicas defines the number of Wireguard instances | 1 | ExclusiveMaximum: false <br />Maximum: 10 <br />Minimum: 1 <br /> |
-| `serviceType` _[ServiceType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#servicetype-v1-core)_ | Type of the service to be created | ClusterIP |  |
+| `serviceType` _[ServiceType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#servicetype-v1-core)_ | Type of the service to be created | ClusterIP |  |
 | `endpointAddress` _string_ | Public address to the wireguard network |  |  |
 | `allowedIPs` _string_ | IP addresses allowed to be routed | 0.0.0.0/0 |  |
 | `address` _[Address](#address)_ | Address space to use | 192.168.254.1/24 | Pattern: `^((10(\.(([0-9]?[0-9])\|(1[0-9]?[0-9])\|(2[0-4]?[0-9])\|(25[0-5])))\{3\})\|(172\.((1[6-9])\|(2[0-9])(3[0-1]))(\.(([0-9]?[0-9])\|(1[0-9]?[0-9])\|(2[0-4]?[0-9])\|(25[0-5])))\{2\})\|(192\.168(\.(([0-9]?[0-9])\|(1[0-9]?[0-9])\|(2[0-4]?[0-9])\|(25[0-5])))\{2\})\|(127('\.(([0-9]?[0-9])\|(1[0-9]?[0-9])\|(2[0-4]?[0-9])\|(25[0-5])))\{3\}))/([8-9]\|(1[0-9])\|(2[0-9])\|(3[0-2]))$` <br /> |
 | `dns` _string_ | DNS configuration for peer | 1.1.1.1 |  |
 | `dropConnectionsTo` _string array_ | Do not allow connections from peer to DropConnectionsTo IP addresses |  |  |
-| `sidecars` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#container-v1-core) array_ | Sidecar containers to run |  |  |
-| `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#affinity-v1-core)_ | Affinity configuration |  |  |
+| `sidecars` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#container-v1-core) array_ | Sidecar containers to run |  |  |
+| `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#affinity-v1-core)_ | Affinity configuration |  |  |
 | `serviceAnnotations` _object (keys:string, values:string)_ | Annotations for the service resource |  |  |
 | `labels` _object (keys:string, values:string)_ | Extra labels for all resources created |  |  |
 
 
+#### WireguardStatus
+
+
+
+
+
+
+
+_Appears in:_
+- [Wireguard](#wireguard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `publicKey` _string_ |  |  |  |
+| `endpoint` _string_ |  |  |  |
 
 

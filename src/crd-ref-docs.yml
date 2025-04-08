@@ -1,5 +1,9 @@
 ---
 processor:
+  ignoreTypes:
+    - "(Wireguard|WireguardPeer)List$"
   ignoreFields:
-    - "status$"
     - "TypeMeta$"
+
+render:
+  kubernetesVersion: 1.31
