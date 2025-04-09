@@ -56,7 +56,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 			t.Log("Pruning docker networks")
 			cmd := exec.Command("docker", "network", "prune", "--force")
 			err := cmd.Run()
-			assert.Nil(t, err)
+			assert.Nil(c, err)
 
 			t.Log("Fetching peer secret")
 			client := dsl.Clientset.CoreV1().Secrets(namespace)
