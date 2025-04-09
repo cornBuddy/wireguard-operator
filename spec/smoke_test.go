@@ -81,6 +81,12 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 			assert.Nil(c, err)
 			assert.NotNil(c, peer, "should create stack for peer")
 
+			// it's expected for peer to be nil when StartPeerWithConfig is
+			// failed, so returning early to avoid panic
+			if peer == nil {
+				return
+			}
+
 			t.Log("Fetching peer container")
 			container, err := peer.ServiceContainer(ctx, testdsl.PeerServiceName)
 			assert.Nil(c, err)
