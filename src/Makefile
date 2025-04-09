@@ -104,7 +104,7 @@ controller-gen: ## Installs controller-gen
 .PHONY: crd-ref-docs
 crd-ref-docs: ## Installs crd-ref-docs
 	command -v crd-ref-docs \
-		|| go github.com/elastic/crd-ref-docs@latest
+		|| go install github.com/elastic/crd-ref-docs@latest
 
 ##@ Deployment
 
