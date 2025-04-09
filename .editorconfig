@@ -22,7 +22,7 @@ max_line_length = 400
 [*.go]
 indent_style = tab
 indent_size = 8
-max_line_length = 100
+max_line_length = 120
 
 [Makefile]
 indent_style = tab
@@ -31,6 +31,3 @@ max_line_length = 120
 
 [src/api/*/types.go]
 max_line_length = 400
-
-[src/controllers/**]
-max_line_length = 120
