@@ -3,6 +3,7 @@ package spec
 import (
 	"context"
 	"io"
+	"os/exec"
 	"regexp"
 	"testing"
 	"time"
@@ -52,6 +53,11 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 
 	spec := onpar.TableSpec(o, func(t *testing.T, tc testCase) {
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			t.Log("Pruning docker networks")
+			cmd := exec.Command("docker", "network", "prune", "--force")
+			err := cmd.Run()
+			assert.Nil(t, err)
+
 			t.Log("Fetching peer secret")
 			client := dsl.Clientset.CoreV1().Secrets(namespace)
 			opts := metav1.GetOptions{}
@@ -68,15 +74,12 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 			assert.Regexp(c, ep, peerConfig)
 
 			t.Log("Provisioning docker compose stack for wireguard peer")
+			// FIXME: during testing, a lot of docker compose instances
+			// are created, but not cleaned up. This leads to inavailability
+			// to create ip address pool for container
 			peer, err := dsl.StartPeerWithConfig(peerConfig)
 			assert.Nil(c, err)
 			assert.NotNil(c, peer, "should create stack for peer")
-
-			// it's expected for peer to be nil when StartPeerWithConfig is
-			// failed, so returning early to avoid panic
-			if peer == nil {
-				return
-			}
 
 			t.Log("Fetching peer container")
 			container, err := peer.ServiceContainer(ctx, testdsl.PeerServiceName)
