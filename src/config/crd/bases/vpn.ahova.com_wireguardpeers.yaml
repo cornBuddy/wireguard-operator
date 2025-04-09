@@ -51,7 +51,7 @@ spec:
                 minLength: 44
                 type: string
               wireguardRef:
-                description: Reference to the wireguard resource
+                description: Required. Reference to the wireguard resource
                 type: string
             required:
             - wireguardRef
@@ -59,6 +59,7 @@ spec:
           status:
             properties:
               publicKey:
+                description: Public key of the peer
                 type: string
             type: object
         type: object

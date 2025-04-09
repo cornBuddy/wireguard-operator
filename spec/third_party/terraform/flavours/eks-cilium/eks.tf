@@ -45,7 +45,6 @@ module "eks" {
     },
     bootstrap_extra_args = <<-EOT
     [settings.kubernetes]
-    "max-pods" = 50
     "allowed-unsafe-sysctls" = ["net.ipv4.*"]
     EOT
   }
@@ -53,17 +52,6 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
   cluster_additional_security_group_ids    = [module.vpc.default_security_group]
-  cluster_security_group_additional_rules = {
-    # metrics server is run in host mode on that port
-    metrics_server = {
-      protocol    = "TCP",
-      from_port   = 10251,
-      to_port     = 10251,
-      type        = "ingress",
-      self        = true,
-      description = "allow metrics server traffic",
-    },
-  }
   node_security_group_additional_rules = {
     # cilium uses icmp to check connectivity, and icmp is not allowed by default
     icmp = {

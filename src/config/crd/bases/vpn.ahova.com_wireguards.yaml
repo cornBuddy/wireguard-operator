@@ -972,13 +972,15 @@ spec:
                 description: DNS configuration for peer
                 type: string
               dropConnectionsTo:
-                description: Do not allow connections from peer to DropConnectionsTo
-                  IP addresses
+                description: Deny connections to the following list of IPs
                 items:
                   type: string
                 type: array
               endpointAddress:
-                description: Public address to the wireguard network
+                description: |-
+                  Address which going to be used in peers configuration. By default,
+                  operator will use IP address of the service, which is not always
+                  desirable (e.g. if public DNS record is attached to load balancer)
                 type: string
               labels:
                 additionalProperties:
@@ -2428,8 +2430,10 @@ spec:
           status:
             properties:
               endpoint:
+                description: Endpoint of the peer
                 type: string
               publicKey:
+                description: Public key of the peer
                 type: string
             type: object
         type: object

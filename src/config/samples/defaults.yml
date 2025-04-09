@@ -4,7 +4,6 @@ kind: Wireguard
 metadata:
   name: wireguard-default
 spec:
-  address: 192.168.3.1/24
   serviceType: LoadBalancer
   serviceAnnotations:
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -23,4 +22,3 @@ metadata:
   name: peer-default
 spec:
   wireguardRef: wireguard-default
-  address: 192.168.3.2/32

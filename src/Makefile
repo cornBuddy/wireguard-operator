@@ -80,8 +80,8 @@ generate: controller-gen kustomize crd-ref-docs ## Generates stuff
 	$(CRD_GEN_DOCS) \
 		--renderer=markdown \
 		--config=crd-ref-docs.yml \
-		--templates-dir=docs-templates/ \
-		--output-path=../docs/pages/crds.md \
+		--templates-dir=third_party/docs-templates/ \
+		--output-path=../docs/pages/api-ref.md \
 		--source-path=api/
 
 .PHONY: manifests

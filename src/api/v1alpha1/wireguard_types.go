@@ -19,9 +19,6 @@ type WireguardSpec struct {
 	// Type of the service to be created
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 
-	// Public address to the wireguard network
-	EndpointAddress *string `json:"endpointAddress,omitempty"`
-
 	// +kubebuilder:default="0.0.0.0/0"
 
 	// IP addresses allowed to be routed
@@ -37,7 +34,12 @@ type WireguardSpec struct {
 	// DNS configuration for peer
 	DNS string `json:"dns,omitempty"`
 
-	// Do not allow connections from peer to DropConnectionsTo IP addresses
+	// Address which going to be used in peers configuration. By default,
+	// operator will use IP address of the service, which is not always
+	// desirable (e.g. if public DNS record is attached to load balancer)
+	EndpointAddress *string `json:"endpointAddress,omitempty"`
+
+	// Deny connections to the following list of IPs
 	DropConnectionsTo []string `json:"dropConnectionsTo,omitempty"`
 
 	// Sidecar containers to run
@@ -66,8 +68,11 @@ type Wireguard struct {
 }
 
 type WireguardStatus struct {
+	// Public key of the peer
 	PublicKey *string `json:"publicKey,omitempty"`
-	Endpoint  *string `json:"endpoint,omitempty"`
+
+	// Endpoint of the peer
+	Endpoint *string `json:"endpoint,omitempty"`
 }
 
 //+kubebuilder:object:root=true

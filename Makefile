@@ -12,6 +12,11 @@ clean:
 vendor:
 	@$(MAKE) -C src vendor
 	@$(MAKE) -C spec vendor
+
+.PHONY: generate
+generate:
+	@$(MAKE) -C src generate
+
 .PHONY: run
 run:
 	@$(MAKE) -C src run

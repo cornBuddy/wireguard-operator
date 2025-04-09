@@ -1,5 +1,3 @@
-// Package v1alpha1 contains API Schema definitions for the vpn v1alpha1 API
-// group
 // +kubebuilder:object:generate=true
 // +groupName=vpn.ahova.com
 package v1alpha1
