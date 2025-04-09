@@ -23,15 +23,15 @@ _Appears in:_
 {{- end }}
 
 {{ if $type.Members -}}
-| Field | Description | Default | Validation |
+| Field | Description | Default |
 | --- | --- | --- | --- |
 {{ if $type.GVK -}}
-| `apiVersion` _string_ | `{{ $type.GVK.Group }}/{{ $type.GVK.Version }}` | | |
-| `kind` _string_ | `{{ $type.GVK.Kind }}` | | |
+| `apiVersion` _string_ | `{{ $type.GVK.Group }}/{{ $type.GVK.Version }}` | |
+| `kind` _string_ | `{{ $type.GVK.Kind }}` | |
 {{ end -}}
 
 {{ range $type.Members -}}
-| `{{ .Name  }}` _{{ markdownRenderType .Type }}_ | {{ template "type_members" . }} | {{ markdownRenderDefault .Default }} | {{ range .Validation -}} {{ markdownRenderFieldDoc . }} <br />{{ end }} |
+| `{{ .Name  }}` _{{ markdownRenderType .Type }}_ | {{ template "type_members" . }} | {{ markdownRenderDefault .Default }} |
 {{ end -}}
 
 {{ end -}}

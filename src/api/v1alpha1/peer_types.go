@@ -6,16 +6,16 @@ import (
 
 // WireguardPeerSpec defines the desired state of Wireguard
 type WireguardPeerSpec struct {
-	// +kubebuilder:validation:Required
-
-	// Reference to the wireguard resource
-	WireguardRef string `json:"wireguardRef,omitempty"`
-
 	// +kubebuilder:default="192.168.254.2/24"
 
+	// IP address of the peer
 	Address `json:"address,omitempty"`
 
-	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Required
+
+	// Required. Reference to the wireguard resource
+	WireguardRef string `json:"wireguardRef,omitempty"`
+
 	// +kubebuilder:validation:MaxLength=44
 	// +kubebuilder:validation:MinLength=44
 	// +kubebuilder:example="WsFemZZdyC+ajbvOtKA7dltaNCaPOusKmkJffjMOMmg="
@@ -37,6 +37,7 @@ type WireguardPeer struct {
 }
 
 type WireguardPeerStatus struct {
+	// Public key of the peer
 	PublicKey *string `json:"publicKey,omitempty"`
 }
 

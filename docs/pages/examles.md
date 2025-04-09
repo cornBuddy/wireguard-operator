@@ -4,9 +4,15 @@ nav_order: 2
 ---
 
 # Examples
+{: .no_toc }
 
-Full list of examples is available in the
-[samples directory](https://github.com/cornbuddy/wireguard-operator/tree/main/src/config/samples)
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+## Defaults
 
 Very basic example of wireguard server and wireguard peer
 ```yaml
@@ -15,8 +21,6 @@ apiVersion: vpn.ahova.com/v1alpha1
 kind: Wireguard
 metadata:
   name: default-wg
-spec:
-  address: 192.168.1.1/24
 
 ---
 apiVersion: vpn.ahova.com/v1alpha1
@@ -25,8 +29,9 @@ metadata:
   name: default-peer
 spec:
   wireguardRef: default-wg
-  address: 192.168.1.2/32
 ```
+
+## Sidecars
 
 Wireguard exporter running in sidecar mode
 ```yaml
@@ -71,6 +76,8 @@ spec:
   wireguardRef: wireguard-sidecar
   address: 192.168.2.2/32
 ```
+
+## HA setup
 
 Highly available setup
 ```yaml
