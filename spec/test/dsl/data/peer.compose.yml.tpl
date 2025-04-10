@@ -2,6 +2,10 @@
 services:
   {{ .Service }}:
     image: {{ .Image }}
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - {{ .NetworkName }}
     volumes:
       - {{ .ConfigPath }}:/etc/wireguard/wg0.conf
       - /dev/net/tun:/dev/net/tun
@@ -12,5 +16,7 @@ services:
     environment:
       - WG_COLOR_MODE=always
       - LOG_LEVEL=debug
-    privileged: true
-    restart: unless-stopped
+
+networks:
+  {{ .NetworkName }}:
+    external: true
