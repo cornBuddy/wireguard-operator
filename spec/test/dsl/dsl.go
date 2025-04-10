@@ -18,7 +18,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
-	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +34,7 @@ const (
 
 	samples        = "../src/config/samples/"
 	wireguardImage = "linuxserver/wireguard:1.0.20210914"
+	network        = "wireguard-operator-spec"
 )
 
 var (
@@ -232,8 +232,12 @@ func (dsl Dsl) DeleteWireguard(name, namespace string) error {
 func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 	compose.ComposeStack, error) {
 
-	net, err := network.New(dsl.ctx)
-	if err != nil {
+	c := fmt.Sprintf(
+		"docker network inspect %s || docker network create %s",
+		network, network,
+	)
+	cmd := exec.Command("bash", "-c", c)
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 
@@ -242,7 +246,7 @@ func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 		return nil, err
 	}
 
-	composePath, err := dsl.makeTempComposeFile(configPath, net.Name)
+	composePath, err := dsl.makeTempComposeFile(configPath, network)
 	if err != nil {
 		return nil, err
 	}
