@@ -1,6 +1,7 @@
 ---
 resources:
 - defaults.yml
+- ha.yml
 - kube-dns.yml
 - sidecar.yml
 #+kubebuilder:scaffold:manifestskustomizesamples
