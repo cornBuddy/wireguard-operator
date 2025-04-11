@@ -21,7 +21,7 @@ This operator is well tested in EKS with cilium CNI driver. It should work in
 any other k8s cluster, but it's not guaranteed. However, wireguard itself
 requires the following
 [unsafe sysctls](https://kubernetes.io/docs/tasks/administer-cluster/sysctl-cluster/#safe-and-unsafe-sysctls)
-to be set:
+to be set to:
 * `net.ipv4.ip_forward=1`
 * `net.ipv4.conf.all.src_valid_mark=1`
 * `net.ipv4.conf.all.rp_filter=0`

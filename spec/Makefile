@@ -25,7 +25,11 @@ nuke:
 
 .PHONY: smoke
 smoke:
-	go test -v ./smoke_test.go
+	go test -v ./smoke
+
+.PHONY: acceptance
+acceptance:
+	go test -v ./acceptance
 
 .PHONY: vet
 vet:
