@@ -242,7 +242,7 @@ func (dsl Dsl) StartPeerWithConfig(peerConfig string) (
 	return stack, nil
 }
 
-func (dsl Dsl) ApplySamples(namespace string) error {
+func (dsl Dsl) ApplySamples() error {
 	if err := dsl.kustomizeSamples("apply"); err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func (dsl Dsl) ApplySamples(namespace string) error {
 	return nil
 }
 
-func (dsl Dsl) DeleteSamples(namespace string) error {
+func (dsl Dsl) DeleteSamples() error {
 	if err := dsl.kustomizeSamples("delete"); err != nil {
 		return err
 	}
