@@ -2,6 +2,7 @@ package acceptance
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -49,9 +50,14 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 	}
 
 	spec := onpar.TableSpec(o, func(t *testing.T, tc testCase) {
+		log := func(message string) {
+			msg := fmt.Sprintf("[%s] %s", tc.peer, message)
+			t.Log(msg)
+		}
+
 		var peerConfig string
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			t.Log("Fetching peer secret")
+			log("Fetching peer secret")
 			client := dsl.Clientset.CoreV1().Secrets(namespace)
 			opts := v1.GetOptions{}
 			secret, err := client.Get(ctx, tc.peer, opts)
@@ -67,7 +73,7 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 			assert.Regexp(c, ep, peerConfig)
 		}, timeout, tick)
 
-		t.Log("Asserting peer connectivity")
+		log("Asserting peer connectivity")
 		dsl.AssertPeerIsEventuallyConnectable(tc.peer, peerConfig, timeout, tick)
 	})
 

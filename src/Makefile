@@ -54,7 +54,7 @@ lint: tidy fmt vet ## Static analisys of the code
 
 .PHONY: minikube
 minikube: ## Starts minikube for integration testing
-	kubectl get no || minikube start
+	kubectl get no || minikube start --extra-config="kubelet.allowed-unsafe-sysctls=net.*"
 	- pkill minikube
 	minikube tunnel &> /dev/null &
 	sleep 5
