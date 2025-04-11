@@ -37,9 +37,13 @@ deploy:
 env:
 	@$(MAKE) -C spec env
 
-.PHONY: spec
+.PHONY: smoke
 smoke:
 	@$(MAKE) -C spec smoke
+
+.PHONY: acceptance
+acceptance:
+	@$(MAKE) -C spec acceptance
 
 .PHONY: docs
 docs:
