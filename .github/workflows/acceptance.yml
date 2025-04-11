@@ -57,6 +57,7 @@ jobs:
           TAG: ${{ steps.latest-tag.outputs.tag }}
           IMAGE: ghcr.io/cornbuddy/${{ github.event.repository.name }}
       - run: make smoke
+      - run: make acceptance
 
   approve-pull-request:
     if: |
