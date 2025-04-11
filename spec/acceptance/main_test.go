@@ -33,12 +33,12 @@ func TestSamplesShouldBeConnectable(t *testing.T) {
 	assert.NotNil(t, dsl)
 
 	t.Log("Applying samples")
-	err = dsl.ApplySamples(namespace)
+	err = dsl.ApplySamples()
 	assert.Nil(t, err, "samples should be deployed")
 
 	t.Cleanup(func() {
 		t.Log("Deleting samples")
-		err := dsl.DeleteSamples(namespace)
+		err := dsl.DeleteSamples()
 		assert.Nil(t, err, "samples should be deletable")
 	})
 
