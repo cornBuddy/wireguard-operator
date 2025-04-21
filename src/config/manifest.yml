@@ -2514,11 +2514,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: wireguard-operator
+  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: leader-election-role
+  namespace: default
 rules:
 - apiGroups:
   - ""
@@ -2619,6 +2621,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: leader-election-rolebinding
+  namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -2626,6 +2629,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: wireguard-operator
+  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -2638,11 +2642,13 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: wireguard-operator
+  namespace: default
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: wireguard-operator
+  namespace: default
 spec:
   ports:
   - port: 8081
@@ -2656,6 +2662,7 @@ metadata:
   labels:
     app.kubernetes.io/name: wireguard-operator
   name: wireguard-operator
+  namespace: default
 spec:
   replicas: 1
   selector:
