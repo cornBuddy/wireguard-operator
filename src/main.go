@@ -12,7 +12,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -35,12 +34,6 @@ func init() {
 }
 
 func main() {
-	namespace, found := os.LookupEnv("POD_NAMESPACE")
-	if !found {
-		log.Info("POD_NAMESPACE env var is not set")
-		os.Exit(1)
-	}
-
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -64,11 +57,6 @@ func main() {
 		LeaderElectionID:       "6a404818.ahova.com",
 		Metrics: server.Options{
 			BindAddress: metricsAddr,
-		},
-		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				namespace: cache.Config{},
-			},
 		},
 	})
 	if err != nil {

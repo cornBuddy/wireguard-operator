@@ -22,7 +22,7 @@ default: clean run ## Fresh start of the operator from local sources
 
 .PHONY: run
 run: fmt vet install ## Run a controller from your host
-	POD_NAMESPACE=default go run ./main.go
+	go run ./main.go
 
 .PHONY: clean
 clean: uninstall undeploy ## Cleans up development environment
