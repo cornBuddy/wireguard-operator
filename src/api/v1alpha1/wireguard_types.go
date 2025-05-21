@@ -34,9 +34,12 @@ type WireguardSpec struct {
 	// DNS configuration for peer
 	DNS string `json:"dns,omitempty"`
 
+	// +kubebuilder:example="example.com:51820"
+
 	// Address which going to be used in peers configuration. By default,
 	// operator will use IP address of the service, which is not always
-	// desirable (e.g. if public DNS record is attached to load balancer)
+	// desirable (e.g. if public DNS record is attached to load balancer).
+	// If port is not set, default wireguard port is used in status
 	EndpointAddress *string `json:"endpointAddress,omitempty"`
 
 	// Deny connections to the following list of IPs
