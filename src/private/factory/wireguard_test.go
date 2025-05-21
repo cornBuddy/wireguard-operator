@@ -180,6 +180,50 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, wantEp, *gotEp)
 	})
+
+	type table struct {
+		msg  string
+		spec v1alpha1.WireguardSpec
+		want string
+	}
+
+	endpointSpec := onpar.TableSpec(o, func(t *testing.T, tab table) {
+		wg := dsl.GenerateWireguard(tab.spec, v1alpha1.WireguardStatus{})
+		fact := Wireguard{
+			Scheme:    scheme,
+			Wireguard: wg,
+			Peers:     v1alpha1.WireguardPeerList{},
+		}
+
+		// I don't care about service when .spec.enpointAdrress is set
+		got, err := fact.ExtractEndpoint(clusterIpSvc)
+		assert.Nil(t, err)
+		assert.Equal(t, tab.want, *got)
+	})
+
+	endpointCases := []table{{
+		msg: "should contain default wireguard port if .spec.endpointAddress does not contain port",
+		spec: v1alpha1.WireguardSpec{
+			EndpointAddress: toPtr("example.com"),
+		},
+		want: "example.com:51820",
+	}, {
+		msg: "should contain not default wireguard port if .spec.endpointAddress contains port",
+		spec: v1alpha1.WireguardSpec{
+			EndpointAddress: toPtr("example.com:1488"),
+		},
+		want: "example.com:1488",
+	}, {
+		msg: "should contain default wireguard port if .spec.endpointAddress contains default wireguard port",
+		spec: v1alpha1.WireguardSpec{
+			EndpointAddress: toPtr("example.com:51820"),
+		},
+		want: "example.com:51820",
+	}}
+
+	for _, tab := range endpointCases {
+		endpointSpec.Entry(tab.msg, tab)
+	}
 }
 
 func TestWireguardConfigMap(t *testing.T) {
