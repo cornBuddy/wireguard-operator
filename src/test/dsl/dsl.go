@@ -5,19 +5,32 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-)
 
-type Reconciler interface {
-	Reconcile(context.Context, ctrl.Request) (ctrl.Result, error)
-	Status() client.SubResourceWriter
-}
+	"github.com/cornbuddy/wireguard-operator/src/api/v1alpha1"
+)
 
 type Dsl struct {
 	K8sClient client.Client
-	Reconciler
+	reconcile.Reconciler
+}
+
+func (dsl Dsl) MakeWireguardWithSpec(ctx context.Context, spec v1alpha1.WireguardSpec) (*v1alpha1.Wireguard, error) {
+	wg := GenerateWireguard(spec, v1alpha1.WireguardStatus{})
+	if err := dsl.Apply(ctx, &wg); err != nil {
+		return nil, err
+	}
+
+	key := types.NamespacedName{
+		Namespace: wg.GetNamespace(),
+		Name:      wg.GetName(),
+	}
+	if err := dsl.K8sClient.Get(ctx, key, &wg); err != nil {
+		return nil, err
+	}
+
+	return &wg, nil
 }
 
 func (dsl Dsl) Reconcile(ctx context.Context, object client.Object) error {

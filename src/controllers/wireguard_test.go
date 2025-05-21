@@ -257,86 +257,97 @@ func TestWireguardService(t *testing.T) {
 func TestWireguardStatus(t *testing.T) {
 	t.Parallel()
 
-	o := onpar.New(t)
+	type testCtx struct {
+		*testing.T
+		// Default wireguard instance
+		Wg *v1alpha1.Wireguard
+		// Namespaced name of the wireguard instance
+		Key types.NamespacedName
+	}
+
+	o := onpar.BeforeEach(onpar.New(t), func(t *testing.T) *testCtx {
+		wg, err := wgDsl.MakeWireguardWithSpec(ctx, v1alpha1.WireguardSpec{})
+		assert.Nil(t, err)
+
+		key := types.NamespacedName{
+			Name:      wg.GetName(),
+			Namespace: wg.GetNamespace(),
+		}
+		return &testCtx{
+			T:   t,
+			Wg:  wg,
+			Key: key,
+		}
+	})
 	defer o.Run()
 
-	type testCase struct {
-		description     string
-		wireguard       v1alpha1.Wireguard
-		extractEndpoint endpointExtractor
-	}
-
-	testCases := []testCase{{
-		description: "should set to clusterIp by default",
-		wireguard: dsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{},
-			v1alpha1.WireguardStatus{},
-		),
-		extractEndpoint: extractClusterIp,
-	}, {
-		description: "should set endpoint to .spec.endpoint if defined",
-		wireguard: dsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{
-				EndpointAddress: toPtr("127.0.0.1"),
-			},
-			v1alpha1.WireguardStatus{},
-		),
-		extractEndpoint: extractWireguardEndpoint,
-	}}
-
-	spec := onpar.TableSpec(o, func(t *testing.T, test testCase) {
-		wg := test.wireguard
+	o.Spec("should contain service ip if .spec.endpointAddress is not defined", func(t *testCtx) {
+		svc := &corev1.Service{}
 		key := types.NamespacedName{
-			Namespace: wg.GetNamespace(),
-			Name:      wg.GetName(),
+			Name:      t.Wg.GetName(),
+			Namespace: t.Wg.GetNamespace(),
 		}
-		err := wgDsl.Apply(ctx, &wg)
+		err := k8sClient.Get(ctx, key, svc)
 		assert.Nil(t, err)
-
-		err = k8sClient.Get(ctx, key, &wg)
-		assert.Nil(t, err)
-		assert.NotNil(t, wg.Status.PublicKey)
-		assert.NotNil(t, wg.Status.Endpoint)
-
-		service := &corev1.Service{}
-		assert.Eventually(t, func() bool {
-			return k8sClient.Get(ctx, key, service) == nil
-		}, timeout, tick)
-
-		ep := test.extractEndpoint(wg, *service)
-		assert.Equal(t, ep, *wg.Status.Endpoint)
+		assert.Contains(t, *t.Wg.Status.Endpoint, svc.Spec.ClusterIP)
 	})
 
-	for _, tc := range testCases {
-		spec.Entry(tc.description, tc)
-	}
-
-	o.Spec("should set public key same as in the secret", func(t *testing.T) {
-		wg := dsl.GenerateWireguard(
-			v1alpha1.WireguardSpec{},
-			v1alpha1.WireguardStatus{},
-		)
-		key := types.NamespacedName{
-			Namespace: wg.GetNamespace(),
-			Name:      wg.GetName(),
-		}
-		err := wgDsl.Apply(ctx, &wg)
-		assert.Nil(t, err)
-
-		err = k8sClient.Get(ctx, key, &wg)
-		assert.Nil(t, err)
-		assert.NotNil(t, wg.Status.PublicKey)
-
+	o.Spec("should generate key if not defined", func(t *testCtx) {
 		secret := &corev1.Secret{}
-		assert.Eventually(t, func() bool {
-			return k8sClient.Get(ctx, key, secret) == nil
-		}, timeout, tick)
+		key := types.NamespacedName{
+			Name:      t.Wg.GetName(),
+			Namespace: t.Wg.GetNamespace(),
+		}
+		err := k8sClient.Get(ctx, key, secret)
+		assert.Nil(t, err)
 		assert.Contains(t, secret.Data, "public-key")
 
-		gotPubKey := *wg.Status.PublicKey
+		gotPubKey := *t.Wg.Status.PublicKey
 		wantPubKey := string(secret.Data["public-key"])
 		assert.Equal(t, wantPubKey, gotPubKey)
 	})
+
+	type table struct {
+		msg  string
+		spec v1alpha1.WireguardSpec
+		want v1alpha1.WireguardStatus
+	}
+
+	endpointSpec := onpar.TableSpec(o, func(t *testCtx, tab table) {
+		wg, err := wgDsl.MakeWireguardWithSpec(ctx, tab.spec)
+		assert.Nil(t, err)
+		assert.Equal(t, *tab.want.Endpoint, *wg.Status.Endpoint)
+	})
+
+	endpointCases := []table{{
+		msg: "should contain default wireguard port if .spec.endpointAddress does not contain port",
+		spec: v1alpha1.WireguardSpec{
+			EndpointAddress: toPtr("example.com"),
+		},
+		want: v1alpha1.WireguardStatus{
+			Endpoint: toPtr("example.com:51820"),
+		},
+	}, {
+		msg: "should contain not default wireguard port if .spec.endpointAddress contains port",
+		spec: v1alpha1.WireguardSpec{
+			EndpointAddress: toPtr("example.com:1488"),
+		},
+		want: v1alpha1.WireguardStatus{
+			Endpoint: toPtr("example.com:1488"),
+		},
+	}, {
+		msg: "should contain default wireguard port if .spec.endpointAddress contains default wireguard port",
+		spec: v1alpha1.WireguardSpec{
+			EndpointAddress: toPtr("example.com:51820"),
+		},
+		want: v1alpha1.WireguardStatus{
+			Endpoint: toPtr("example.com:51820"),
+		},
+	}}
+
+	for _, tab := range endpointCases {
+		endpointSpec.Entry(tab.msg, tab)
+	}
 }
 
 func TestWireguardConfigMap(t *testing.T) {
