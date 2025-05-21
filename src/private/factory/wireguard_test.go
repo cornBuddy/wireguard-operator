@@ -99,28 +99,23 @@ func TestWireguardResourcesShouldHaveProperDecorations(t *testing.T) {
 func TestWireguardExtractEndpoint(t *testing.T) {
 	t.Parallel()
 
+	hostname := "localhost"
 	clusterIp := "172.168.14.88"
 	clusterIpSvc := corev1.Service{
 		Spec: corev1.ServiceSpec{
 			ClusterIP: clusterIp,
 		},
 	}
-	hostname := "localhost"
-	loadBalancerSvc := corev1.Service{
-		Spec: corev1.ServiceSpec{
-			ClusterIP: clusterIp,
-		},
-		Status: corev1.ServiceStatus{
-			LoadBalancer: corev1.LoadBalancerStatus{
-				Ingress: []corev1.LoadBalancerIngress{{
-					Hostname: hostname,
-				}},
-			},
-		},
-	}
 
 	o := onpar.New(t)
 	defer o.Run()
+
+	o.Spec("should return cluster ip by default", func(t *testing.T) {
+		wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
+		gotEp, err := defaultWgFact.ExtractEndpoint(clusterIpSvc)
+		assert.Nil(t, err)
+		assert.Equal(t, wantEp, *gotEp)
+	})
 
 	o.Spec("should fail when public ip is not set", func(t *testing.T) {
 		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
@@ -143,14 +138,6 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 		}
 		_, err := fact.ExtractEndpoint(svc)
 		assert.Equal(t, ErrEndpointNotSet, err)
-
-	})
-
-	o.Spec("should return cluster ip by default", func(t *testing.T) {
-		wantEp := fmt.Sprintf("%s:%d", clusterIp, wireguardPort)
-		gotEp, err := defaultWgFact.ExtractEndpoint(clusterIpSvc)
-		assert.Nil(t, err)
-		assert.Equal(t, wantEp, *gotEp)
 	})
 
 	o.Spec("should return error when service type is NodePort", func(t *testing.T) {
@@ -166,28 +153,13 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 		assert.Equal(t, ErrUnsupportedServiceType, err)
 	})
 
-	o.Spec("should return hostname when serviceType == LoadBalancer", func(t *testing.T) {
-		wg := dsl.GenerateWireguard(v1alpha1.WireguardSpec{
-			ServiceType: corev1.ServiceTypeLoadBalancer,
-		}, v1alpha1.WireguardStatus{})
-		fact := Wireguard{
-			Scheme:    scheme,
-			Wireguard: wg,
-			Peers:     v1alpha1.WireguardPeerList{},
-		}
-		wantEp := fmt.Sprintf("%s:%d", hostname, wireguardPort)
-		gotEp, err := fact.ExtractEndpoint(loadBalancerSvc)
-		assert.Nil(t, err)
-		assert.Equal(t, wantEp, *gotEp)
-	})
-
 	type table struct {
 		msg  string
 		spec v1alpha1.WireguardSpec
 		want string
 	}
 
-	endpointSpec := onpar.TableSpec(o, func(t *testing.T, tab table) {
+	spec := onpar.TableSpec(o, func(t *testing.T, tab table) {
 		wg := dsl.GenerateWireguard(tab.spec, v1alpha1.WireguardStatus{})
 		fact := Wireguard{
 			Scheme:    scheme,
@@ -219,10 +191,16 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 			EndpointAddress: toPtr("example.com:51820"),
 		},
 		want: "example.com:51820",
+	}, {
+		msg: "should return hostname when serviceType == LoadBalancer",
+		spec: v1alpha1.WireguardSpec{
+			ServiceType: corev1.ServiceTypeLoadBalancer,
+		},
+		want: fmt.Sprintf("%s:%d", hostname, wireguardPort),
 	}}
 
 	for _, tab := range endpointCases {
-		endpointSpec.Entry(tab.msg, tab)
+		spec.Entry(tab.msg, tab)
 	}
 }
 
