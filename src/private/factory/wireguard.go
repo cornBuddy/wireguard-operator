@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"maps"
+	"strings"
 	"text/template"
 
 	"github.com/cisco-open/k8s-objectmatcher/patch"
@@ -68,8 +69,13 @@ func (fact Wireguard) Labels() map[string]string {
 // Returns desired endpoint address for peer
 func (fact Wireguard) ExtractEndpoint(svc corev1.Service) (*string, error) {
 	if fact.Wireguard.Spec.EndpointAddress != nil {
-		ep := *fact.Wireguard.Spec.EndpointAddress
-		return toPtr(fmt.Sprintf("%s:%d", ep, wireguardPort)), nil
+		res := *fact.Wireguard.Spec.EndpointAddress
+		dontIncludePort := !strings.Contains(res, ":")
+		if dontIncludePort {
+			res = fmt.Sprintf("%s:%d", res, wireguardPort)
+		}
+
+		return &res, nil
 	}
 
 	address := ""
