@@ -130,7 +130,7 @@ _Appears in:_
 | `allowedIPs` _string_ | IP addresses allowed to be routed | 0.0.0.0/0 |
 | `address` _[Address](#address)_ | Address space to use | 192.168.254.1/24 |
 | `dns` _string_ | DNS configuration for peer | 1.1.1.1 |
-| `endpointAddress` _string_ | Address which going to be used in peers configuration. By default,<br />operator will use IP address of the service, which is not always<br />desirable (e.g. if public DNS record is attached to load balancer) |  |
+| `endpointAddress` _string_ | Address which going to be used in peers configuration. By default,<br />operator will use IP address of the service, which is not always<br />desirable (e.g. if public DNS record is attached to load balancer).<br />If port is not set, default wireguard port is used in status |  |
 | `dropConnectionsTo` _string array_ | Deny connections to the following list of IPs |  |
 | `sidecars` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#container-v1-core) array_ | Sidecar containers to run |  |
 | `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#affinity-v1-core)_ | Affinity configuration |  |
