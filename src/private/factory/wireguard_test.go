@@ -99,11 +99,23 @@ func TestWireguardResourcesShouldHaveProperDecorations(t *testing.T) {
 func TestWireguardExtractEndpoint(t *testing.T) {
 	t.Parallel()
 
-	hostname := "localhost"
 	clusterIp := "172.168.14.88"
 	clusterIpSvc := corev1.Service{
 		Spec: corev1.ServiceSpec{
 			ClusterIP: clusterIp,
+		},
+	}
+	hostname := "localhost"
+	loadBalancerSvc := corev1.Service{
+		Spec: corev1.ServiceSpec{
+			ClusterIP: clusterIp,
+		},
+		Status: corev1.ServiceStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{{
+					Hostname: hostname,
+				}},
+			},
 		},
 	}
 
@@ -167,8 +179,9 @@ func TestWireguardExtractEndpoint(t *testing.T) {
 			Peers:     v1alpha1.WireguardPeerList{},
 		}
 
-		// I don't care about service when .spec.enpointAdrress is set
-		got, err := fact.ExtractEndpoint(clusterIpSvc)
+		// I don't care about service when .spec.enpointAdrress is set,
+		// but I need load balancer for one test case
+		got, err := fact.ExtractEndpoint(loadBalancerSvc)
 		assert.Nil(t, err)
 		assert.Equal(t, tab.want, *got)
 	})
