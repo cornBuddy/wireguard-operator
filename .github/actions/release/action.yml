@@ -35,7 +35,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         PRERELEASE: ${{ inputs.prerelease }}
-        DRY_RUN: false
+        DRY_RUN: true
     - run: make docker
       shell: bash
       env:
