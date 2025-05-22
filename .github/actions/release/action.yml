@@ -31,6 +31,7 @@ runs:
         password: ${{ inputs.github_token }}
         registry: ${{ inputs.registry }}
     - uses: ./.github/actions/bump-git-tag
+      id: tag
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         PRERELEASE: ${{ inputs.prerelease }}
