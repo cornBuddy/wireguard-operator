@@ -5,7 +5,6 @@ set -eo pipefail
 # config
 default_semvar_bump=${DEFAULT_BUMP:-patch}
 default_branch=${DEFAULT_BRANCH:-$GITHUB_BASE_REF} # get the default branch from github runner env vars
-with_v=${WITH_V:-true}
 release_branches=${RELEASE_BRANCHES:-master,main}
 custom_tag=${CUSTOM_TAG:-}
 source=${SOURCE:-.}
@@ -13,7 +12,6 @@ dryrun=${DRY_RUN:-true}
 git_api_tagging=${GIT_API_TAGGING:-true}
 initial_version=${INITIAL_VERSION:-0.0.0}
 tag_context=${TAG_CONTEXT:-repo}
-tag_prefix=${TAG_PREFIX:-false}
 prerelease=${PRERELEASE:-true}
 suffix=${PRERELEASE_SUFFIX:-rc}
 verbose=${VERBOSE:-false}
@@ -34,7 +32,6 @@ cd "${GITHUB_WORKSPACE}/${source}" || exit 1
 echo "*** CONFIGURATION ***"
 echo -e "\tDEFAULT_BUMP: ${default_semvar_bump}"
 echo -e "\tDEFAULT_BRANCH: ${default_branch}"
-echo -e "\tWITH_V: ${with_v}"
 echo -e "\tRELEASE_BRANCHES: ${release_branches}"
 echo -e "\tCUSTOM_TAG: ${custom_tag}"
 echo -e "\tSOURCE: ${source}"
@@ -42,7 +39,6 @@ echo -e "\tDRY_RUN: ${dryrun}"
 echo -e "\tGIT_API_TAGGING: ${git_api_tagging}"
 echo -e "\tINITIAL_VERSION: ${initial_version}"
 echo -e "\tTAG_CONTEXT: ${tag_context}"
-echo -e "\tTAG_PREFIX: ${tag_prefix}"
 echo -e "\tPRERELEASE: ${prerelease}"
 echo -e "\tPRERELEASE_SUFFIX: ${suffix}"
 echo -e "\tVERBOSE: ${verbose}"
@@ -86,20 +82,7 @@ echo "pre_release = $pre_release"
 # fetch tags
 git fetch --tags
 
-# Set no tag prefix (not even v)
-tagPrefix=""
-
-if $with_v
-then
-    tagPrefix="v"
-fi
-
-# If a tag_prefix is supplied use that
-if [[ "${tag_prefix}" != "false" ]]
-then
-    tagPrefix=$tag_prefix
-fi
-
+tagPrefix="v"
 tagFmt="^$tagPrefix?[0-9]+\.[0-9]+\.[0-9]+$"
 preTagFmt="^$tagPrefix?[0-9]+\.[0-9]+\.[0-9]+(-$suffix\.[0-9]+)$"
 
@@ -215,10 +198,10 @@ then
     # already a pre-release available, bump it
     if [[ "$pre_tag" =~ $new ]] && [[ "$pre_tag" =~ $suffix ]]
     then
-        new=${tagPrefix}$(semver -i prerelease "${pre_tag}" --preid "${suffix}")
+        new=$(semver -i prerelease "${pre_tag}" --preid "${suffix}")
         echo -e "Bumping ${suffix} pre-tag ${pre_tag}. New pre-tag ${new}"
     else
-        new="${tagPrefix}${new}-${suffix}.0"
+        new="${new}-${suffix}.0"
         echo -e "Setting ${suffix} pre-tag ${pre_tag} - With pre-tag ${new}"
     fi
     part="pre-$part"
