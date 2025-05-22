@@ -22,31 +22,13 @@ inputs:
 
 runs:
   using: composite
+  env:
+    GITHUB_TOKEN: ${{ inputs.github_token }}
+    PRERELEASE: ${{ inputs.prerelease }}
+    PRERELEASE_SUFFIX: rc
+    DEFAULT_BUMP: patch
+    WITH_V: true
   steps:
-    - uses: anothrNick/github-tag-action@v1
-      id: tag
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-        PRERELEASE: ${{ inputs.prerelease }}
-        PRERELEASE_SUFFIX: rc
-        DEFAULT_BUMP: patch
-        WITH_V: true
-        DRY_RUN: false
-    - uses: requarks/changelog-action@v1
-      id: changelog
-      with:
-        token: ${{ inputs.github_token }}
-        fromTag: ${{ steps.tag.outputs.new_tag }}
-        toTag: ${{ steps.tag.outputs.old_tag }}
-        excludeTypes: ""
-        writeToFile: false
-    - uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.tag.outputs.new_tag }}
-        name: ${{ steps.tag.outputs.new_tag }}
-        body: ${{ steps.changelog.outputs.changes }}
-        prerelease: ${{ inputs.prerelease }}
-        token: ${{ inputs.github_token }}
     - uses: docker/setup-qemu-action@v3
     - uses: docker/setup-buildx-action@v3
     - uses: docker/login-action@v3
@@ -54,10 +36,14 @@ runs:
         username: ${{ github.actor }}
         password: ${{ inputs.github_token }}
         registry: ${{ inputs.registry }}
+    - uses: anothrNick/github-tag-action@v1
+      id: tag
+      env:
+        DRY_RUN: true
     - run: make docker
       shell: bash
       env:
-        TAG: ${{ steps.tag.outputs.new_tag }}
+        TAG: ${{ steps.tag.outputs.tag }}
         IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
     - if: ${{ inputs.extra_tags != '' }}
       run: |
@@ -67,3 +53,21 @@ runs:
       shell: bash
       env:
         IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
+    - uses: anothrNick/github-tag-action@v1
+      env:
+        DRY_RUN: false
+    - uses: requarks/changelog-action@v1
+      id: changelog
+      with:
+        token: ${{ inputs.github_token }}
+        fromTag: ${{ steps.tag.outputs.tag }}
+        toTag: ${{ steps.tag.outputs.old_tag }}
+        excludeTypes: ""
+        writeToFile: false
+    - uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: ${{ steps.tag.outputs.tag }}
+        body: ${{ steps.changelog.outputs.changes }}
+        prerelease: ${{ inputs.prerelease }}
+        token: ${{ inputs.github_token }}
