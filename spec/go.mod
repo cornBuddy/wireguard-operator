@@ -1,11 +1,9 @@
 module github.com/cornbuddy/wireguard-operator/spec
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.24.3
 
 require (
-	github.com/poy/onpar v0.3.3
+	github.com/poy/onpar v0.3.5
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
 	github.com/testcontainers/testcontainers-go/modules/compose v0.37.0
