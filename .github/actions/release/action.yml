@@ -22,12 +22,6 @@ inputs:
 
 runs:
   using: composite
-  env:
-    GITHUB_TOKEN: ${{ inputs.github_token }}
-    PRERELEASE: ${{ inputs.prerelease }}
-    PRERELEASE_SUFFIX: rc
-    DEFAULT_BUMP: patch
-    WITH_V: true
   steps:
     - uses: docker/setup-qemu-action@v3
     - uses: docker/setup-buildx-action@v3
@@ -36,15 +30,17 @@ runs:
         username: ${{ github.actor }}
         password: ${{ inputs.github_token }}
         registry: ${{ inputs.registry }}
-    - uses: anothrNick/github-tag-action@v1
-      id: tag
+    - uses: ./.github/actions/bump-git-tag
       env:
-        DRY_RUN: true
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        PRERELEASE: ${{ inputs.prerelease }}
+        DRY_RUN: false
     - run: make docker
       shell: bash
       env:
         TAG: ${{ steps.tag.outputs.tag }}
         IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
+        CACHE_FROM: ${{ steps.tag.outputs.old_tag }}
     - if: ${{ inputs.extra_tags != '' }}
       run: |
         for tag in ${{ inputs.extra_tags }}; do
@@ -53,8 +49,11 @@ runs:
       shell: bash
       env:
         IMAGE: ${{ inputs.registry }}/${{ inputs.image }}
-    - uses: anothrNick/github-tag-action@v1
+        CACHE_FROM: ${{ steps.tag.outputs.old_tag }}
+    - uses: ./.github/actions/bump-git-tag
       env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        PRERELEASE: ${{ inputs.prerelease }}
         DRY_RUN: false
     - uses: requarks/changelog-action@v1
       id: changelog
