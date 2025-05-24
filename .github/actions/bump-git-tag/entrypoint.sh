@@ -61,6 +61,12 @@ setOutput() {
     echo "${1}=${2}" >> "${GITHUB_OUTPUT}"
 }
 
+setOutputs() {
+    setOutput "old_tag" "${1}"
+    setOutput "tag" "${2}"
+    setOutput "part" "${3}"
+}
+
 current_branch=$(git rev-parse --abbrev-ref HEAD)
 
 pre_release="$prerelease"
@@ -123,8 +129,7 @@ commit=$(git rev-parse HEAD)
 if [ "$tag_commit" == "$commit" ] && [ "$force_without_changes" == "false" ]
 then
     echo "No new commits since previous tag. Skipping..."
-    setOutput "new_tag" "$tag"
-    setOutput "tag" "$tag"
+    setOutputs "$tag" "$tag" "$default_semvar_bump"
     exit 0
 fi
 
@@ -162,19 +167,13 @@ case "$log" in
     *$patch_string_token* ) new=${tagPrefix}$(semver -i patch "${current_tag}"); part="patch";;
     *$none_string_token* )
         echo "Default bump was set to none. Skipping..."
-        setOutput "old_tag" "$tag"
-        setOutput "new_tag" "$tag"
-        setOutput "tag" "$tag"
-        setOutput "part" "$default_semvar_bump"
+        setOutputs "$tag" "$tag" "$default_semvar_bump"
         exit 0;;
     * )
         if [ "$default_semvar_bump" == "none" ]
         then
             echo "Default bump was set to none. Skipping..."
-            setOutput "old_tag" "$tag"
-            setOutput "new_tag" "$tag"
-            setOutput "tag" "$tag"
-            setOutput "part" "$default_semvar_bump"
+            setOutputs "$tag" "$tag" "$default_semvar_bump"
             exit 0
         else
             new=${tagPrefix}$(semver -i "${default_semvar_bump}" "${current_tag}")
@@ -191,8 +190,7 @@ then
     if [ "$pre_tag_commit" == "$commit" ] &&  [ "$force_without_changes_pre" == "false" ]
     then
         echo "No new commits since previous pre_tag. Skipping..."
-        setOutput "new_tag" "$pre_tag"
-        setOutput "tag" "$pre_tag"
+        setOutputs "$pre_tag" "$pre_tag" "$default_semvar_bump"
         exit 0
     fi
     # already a pre-release available, bump it
@@ -215,10 +213,7 @@ then
     new="$custom_tag"
 fi
 
-# set outputs
-setOutput "part" "$part"
-setOutput "tag" "$new"
-setOutput "old_tag" "$pre_tag"
+setOutputs "$new" "$pre_tag" "$part"
 
 # dry run exit without real changes
 if $dryrun
