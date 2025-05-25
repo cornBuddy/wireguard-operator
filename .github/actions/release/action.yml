@@ -12,7 +12,7 @@ inputs:
   registry:
     required: true
     description: address of the docker registry to push image to
-  prerelease:
+  pre_release:
     required: true
     description: indicates whether it's pre-release or not
   extra_tags:
@@ -34,8 +34,7 @@ runs:
       id: tag
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        PRERELEASE: ${{ inputs.prerelease }}
-        DRY_RUN: true
+        PRE_RELEASE: ${{ inputs.pre_release }}
     - run: make docker
       shell: bash
       env:
@@ -54,7 +53,7 @@ runs:
     - uses: ./.github/actions/bump-git-tag
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        PRERELEASE: ${{ inputs.prerelease }}
+        PRE_RELEASE: ${{ inputs.pre_release }}
         DRY_RUN: false
     - uses: requarks/changelog-action@v1
       id: changelog
@@ -69,5 +68,5 @@ runs:
         tag_name: ${{ steps.tag.outputs.tag }}
         name: ${{ steps.tag.outputs.tag }}
         body: ${{ steps.changelog.outputs.changes }}
-        prerelease: ${{ inputs.prerelease }}
+        prerelease: ${{ inputs.pre_release }}
         token: ${{ inputs.github_token }}
