@@ -1,3 +1,4 @@
+---
 name: Github Tag Bump
 description: Bump and push git tag on merge
 author: Nick Sjostrom
@@ -9,8 +10,6 @@ outputs:
     description: Previous git tag
   tag:
     description: Generated tag
-  part:
-    description: The part of version which was bumped
 branding:
   icon: git-merge
   color: purple

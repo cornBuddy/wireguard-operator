@@ -1,5 +1,3 @@
 # wireguard-operator
 
-## tl;dr
-
-TODO: add install guide
+source code of the operator

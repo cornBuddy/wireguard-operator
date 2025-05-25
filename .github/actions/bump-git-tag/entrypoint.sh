@@ -5,6 +5,7 @@ set -eo pipefail
 # config
 default_semvar_bump=${DEFAULT_BUMP:-patch}
 default_branch=${DEFAULT_BRANCH:-$GITHUB_BASE_REF} # get the default branch from github runner env vars
+with_v=${WITH_V:-false}
 release_branches=${RELEASE_BRANCHES:-master,main}
 custom_tag=${CUSTOM_TAG:-}
 source=${SOURCE:-.}
@@ -12,11 +13,12 @@ dryrun=${DRY_RUN:-true}
 git_api_tagging=${GIT_API_TAGGING:-true}
 initial_version=${INITIAL_VERSION:-0.0.0}
 tag_context=${TAG_CONTEXT:-repo}
+tag_prefix=${TAG_PREFIX:-v}
 prerelease=${PRERELEASE:-true}
 suffix=${PRERELEASE_SUFFIX:-rc}
-verbose=${VERBOSE:-false}
-major_string_token=${MAJOR_STRING_TOKEN:-#major}
-minor_string_token=${MINOR_STRING_TOKEN:-#minor}
+verbose=${VERBOSE:-true}
+major_string_token=${MAJOR_STRING_TOKEN:-"BREAKING CHANGE"}
+minor_string_token=${MINOR_STRING_TOKEN:-feat}
 patch_string_token=${PATCH_STRING_TOKEN:-#patch}
 none_string_token=${NONE_STRING_TOKEN:-#none}
 branch_history=${BRANCH_HISTORY:-compare}
@@ -32,6 +34,7 @@ cd "${GITHUB_WORKSPACE}/${source}" || exit 1
 echo "*** CONFIGURATION ***"
 echo -e "\tDEFAULT_BUMP: ${default_semvar_bump}"
 echo -e "\tDEFAULT_BRANCH: ${default_branch}"
+echo -e "\tWITH_V: ${with_v}"
 echo -e "\tRELEASE_BRANCHES: ${release_branches}"
 echo -e "\tCUSTOM_TAG: ${custom_tag}"
 echo -e "\tSOURCE: ${source}"
@@ -39,6 +42,7 @@ echo -e "\tDRY_RUN: ${dryrun}"
 echo -e "\tGIT_API_TAGGING: ${git_api_tagging}"
 echo -e "\tINITIAL_VERSION: ${initial_version}"
 echo -e "\tTAG_CONTEXT: ${tag_context}"
+echo -e "\tTAG_PREFIX: ${tag_prefix}"
 echo -e "\tPRERELEASE: ${prerelease}"
 echo -e "\tPRERELEASE_SUFFIX: ${suffix}"
 echo -e "\tVERBOSE: ${verbose}"
@@ -59,12 +63,6 @@ fi
 
 setOutput() {
     echo "${1}=${2}" >> "${GITHUB_OUTPUT}"
-}
-
-setOutputs() {
-    setOutput "old_tag" "${1}"
-    setOutput "tag" "${2}"
-    setOutput "part" "${3}"
 }
 
 current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -88,7 +86,20 @@ echo "pre_release = $pre_release"
 # fetch tags
 git fetch --tags
 
-tagPrefix="v"
+# Set no tag prefix (not even v)
+tagPrefix=""
+
+if $with_v
+then
+    tagPrefix="v"
+fi
+
+# If a tag_prefix is supplied use that
+if [[ "${tag_prefix}" != "false" ]]
+then
+  tagPrefix=$tag_prefix
+fi
+
 tagFmt="^$tagPrefix?[0-9]+\.[0-9]+\.[0-9]+$"
 preTagFmt="^$tagPrefix?[0-9]+\.[0-9]+\.[0-9]+(-$suffix\.[0-9]+)$"
 
@@ -108,34 +119,37 @@ esac
 # get the latest tag that looks like a semver (with or without v)
 matching_tag_refs=$( (grep -E "$tagFmt" <<< "$git_refs") || true)
 matching_pre_tag_refs=$( (grep -E "$preTagFmt" <<< "$git_refs") || true)
-previous_release_tag=$(head -n 1 <<< "$matching_tag_refs")
-previous_prerelease_tag=$(head -n 1 <<< "$matching_pre_tag_refs")
+tag=$(head -n 1 <<< "$matching_tag_refs")
+pre_tag=$(head -n 1 <<< "$matching_pre_tag_refs")
 
 # if there are none, start tags at initial version
-if [ -z "$previous_release_tag" ]
+if [ -z "$tag" ]
 then
-    previous_release_tag="$tagPrefix$initial_version"
-    if [ -z "$previous_prerelease_tag" ] && $pre_release
+    tag="$tagPrefix$initial_version"
+    if [ -z "$pre_tag" ] && $pre_release
     then
-        previous_prerelease_tag="$tagPrefix$initial_version"
+        pre_tag="$tagPrefix$initial_version"
     fi
 fi
 
 # get current commit hash for tag
-tag_commit=$(git rev-list -n 1 "$previous_release_tag" || true )
+tag_commit=$(git rev-list -n 1 "$tag" || true )
 # get current commit hash
 commit=$(git rev-parse HEAD)
 # skip if there are no new commits for non-pre_release
 if [ "$tag_commit" == "$commit" ] && [ "$force_without_changes" == "false" ]
 then
     echo "No new commits since previous tag. Skipping..."
-    setOutputs "$previous_release_tag" "$previous_release_tag" "$default_semvar_bump"
+    setOutput "new_tag" "$tag"
+    setOutput "tag" "$tag"
     exit 0
 fi
 
 # sanitize that the default_branch is set (via env var when running on PRs) else find it natively
 if [ -z "${default_branch}" ] && [ "$branch_history" == "full" ]
 then
+    echo "The DEFAULT_BRANCH should be autodetected when tag-action runs on on PRs else must be defined"
+    echo "See: https://github.com/anothrNick/github-tag-action/pull/230, since is not defined we find it natively"
     default_branch=$(git branch -rl '*/master' '*/main' | cut -d / -f2)
     echo "default_branch=${default_branch}"
     # re check this
@@ -157,9 +171,9 @@ printf "History:\n---\n%s\n---\n" "$log"
 
 if [ -z "$tagPrefix" ]
 then
-    current_tag=${previous_release_tag}
+  current_tag=${tag}
 else
-    current_tag="$(echo "${previous_release_tag}" | sed "s/${tagPrefix}//g")"
+  current_tag="$(echo ${tag}| sed "s/${tagPrefix}//g")"
 fi
 case "$log" in
     *$major_string_token* ) new=${tagPrefix}$(semver -i major "${current_tag}"); part="major";;
@@ -167,37 +181,51 @@ case "$log" in
     *$patch_string_token* ) new=${tagPrefix}$(semver -i patch "${current_tag}"); part="patch";;
     *$none_string_token* )
         echo "Default bump was set to none. Skipping..."
-        setOutputs "$previous_release_tag" "$previous_release_tag" "$default_semvar_bump"
+        setOutput "old_tag" "$tag"
+        setOutput "new_tag" "$tag"
+        setOutput "tag" "$tag"
+        setOutput "part" "$default_semvar_bump"
         exit 0;;
     * )
-        new=${tagPrefix}$(semver -i "${default_semvar_bump}" "${current_tag}")
-        part=$default_semvar_bump
+        if [ "$default_semvar_bump" == "none" ]
+        then
+            echo "Default bump was set to none. Skipping..."
+            setOutput "old_tag" "$tag"
+            setOutput "new_tag" "$tag"
+            setOutput "tag" "$tag"
+            setOutput "part" "$default_semvar_bump"
+            exit 0
+        else
+            new=${tagPrefix}$(semver -i "${default_semvar_bump}" "${current_tag}")
+            part=$default_semvar_bump
+        fi
         ;;
 esac
 
 if $pre_release
 then
     # get current commit hash for tag
-    pre_tag_commit=$(git rev-list -n 1 "$previous_prerelease_tag" || true)
+    pre_tag_commit=$(git rev-list -n 1 "$pre_tag" || true)
     # skip if there are no new commits for pre_release
     if [ "$pre_tag_commit" == "$commit" ] &&  [ "$force_without_changes_pre" == "false" ]
     then
         echo "No new commits since previous pre_tag. Skipping..."
-        setOutputs "$previous_prerelease_tag" "$previous_prerelease_tag" "$default_semvar_bump"
+        setOutput "new_tag" "$pre_tag"
+        setOutput "tag" "$pre_tag"
         exit 0
     fi
     # already a pre-release available, bump it
-    if [[ "$previous_prerelease_tag" =~ $new ]] && [[ "$previous_prerelease_tag" =~ $suffix ]]
+    if [[ "$pre_tag" =~ $new ]] && [[ "$pre_tag" =~ $suffix ]]
     then
-        new=$(semver -i prerelease "${previous_prerelease_tag}" --preid "${suffix}")
-        echo -e "Bumping ${suffix} pre-tag ${previous_prerelease_tag}. New pre-tag ${new}"
+        new=${tagPrefix}$(semver -i prerelease "${pre_tag}" --preid "${suffix}")
+        echo -e "Bumping ${suffix} pre-tag ${pre_tag}. New pre-tag ${new}"
     else
         new="${new}-${suffix}.0"
-        echo -e "Setting ${suffix} pre-tag ${previous_prerelease_tag} - With pre-tag ${new}"
+        echo -e "Setting ${suffix} pre-tag ${pre_tag} - With pre-tag ${new}"
     fi
     part="pre-$part"
 else
-    echo -e "Bumping tag ${previous_release_tag} - New tag ${new}"
+    echo -e "Bumping tag ${tag} - New tag ${new}"
 fi
 
 # as defined in readme if CUSTOM_TAG is used any semver calculations are irrelevant.
@@ -206,11 +234,11 @@ then
     new="$custom_tag"
 fi
 
-old="$previous_release_tag"
-if $pre_release; then
-    old="$previous_prerelease_tag"
-fi
-setOutputs "$old" "$new" "$part"
+# set outputs
+setOutput "new_tag" "$new"
+setOutput "part" "$part"
+setOutput "tag" "$new" # this needs to go in v2 is breaking change
+setOutput "old_tag" "$tag"
 
 # dry run exit without real changes
 if $dryrun
